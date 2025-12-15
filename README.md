@@ -1,0 +1,2 @@
+# TradingSim
+Simple trading sim
