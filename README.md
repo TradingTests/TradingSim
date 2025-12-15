@@ -1,2 +1,2 @@
 # TradingSim
-Simple trading sim
+Simple trading sim based on public APIs
