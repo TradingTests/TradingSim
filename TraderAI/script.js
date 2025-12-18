@@ -4,7 +4,6 @@ console.log("TraderAI script loaded.");
 // --- CONFIG ---
 const SYMBOLS = ['BTCIRT', 'ETHIRT', 'USDTIRT'];
 const LOOP_INTERVAL = 15000; // 15 seconds
-const REWARD_DELAY = 10 * 60 * 1000; // 10 minutes in milliseconds
 const LEARNING_RATE = 0.01;
 const EXPLORATION_RATE = 0.1; // 10% chance of exploring
 
@@ -25,64 +24,71 @@ const wallet = {
 let model;
 let mainLoopInterval = null;
 let portfolioChart;
-const pendingRewards = []; // To track trades for reward calculation
 const portfolioHistory = []; // To track portfolio value over time
+let tradesMadeLastCycle = []; // To calculate rewards on the next cycle
 
 // --- API & TRADING LOGIC ---
 
 /**
- * Fetches market data for a given symbol.
- * NOTE: This might fail due to CORS policy if the API doesn't allow browser-based requests.
- * A backend proxy would be the solution if that's the case.
- * @param {string} symbol - The market symbol (e.g., 'BTCIRT').
- * @returns {Promise<Object|null>} An object with price and recentTrades, or null on failure.
+ * Fetches market data for all symbols.
+ * It gets all orderbooks at once and then fetches recent trades for each symbol.
+ * @returns {Promise<Array>} An array of market data objects.
  */
-async function fetchMarketData(symbol) {
+async function fetchAllMarketData() {
     try {
-        const tradesResponse = await fetch(`https://apiv2.nobitex.ir/v2/trades/${symbol}`);
-        if (!tradesResponse.ok) {
-            throw new Error(`Failed to fetch trades for ${symbol}`);
+        const orderbookResponse = await fetch('https://apiv2.nobitex.ir/v3/orderbook/all');
+        if (!orderbookResponse.ok) {
+            throw new Error('Failed to fetch orderbook for all markets');
         }
-        const tradesData = await tradesResponse.json();
-        const recentTrades = tradesData.trades.slice(0, 20);
-
-        // Nobitex uses different keys for currency pairs in the stats endpoint.
-        // We need to parse the symbol to get src and dst currencies.
-        let srcCurrency, dstCurrency;
-        // This is a simple parser, might need to be more robust for all symbols.
-        if (symbol.endsWith('IRT')) {
-            dstCurrency = 'rls';
-            srcCurrency = symbol.slice(0, -3).toLowerCase();
-        } else if (symbol.endsWith('USDT')) {
-            dstCurrency = 'usdt';
-            srcCurrency = symbol.slice(0, -4).toLowerCase();
-        } else {
-            console.error(`Unsupported symbol format: ${symbol}`);
-            return null;
+        const orderbookData = await orderbookResponse.json();
+        if (orderbookData.status !== 'ok') {
+            throw new Error('Orderbook status not ok');
         }
 
-        const statsResponse = await fetch(`https://apiv2.nobitex.ir/market/stats?srcCurrency=${srcCurrency}&dstCurrency=${dstCurrency}`);
-        if (!statsResponse.ok) {
-            throw new Error(`Failed to fetch stats for ${symbol}`);
-        }
-        const statsData = await statsResponse.json();
-        const marketStats = statsData.stats[`${srcCurrency}-${dstCurrency}`];
-        if (!marketStats) {
-             throw new Error(`No stats found for ${srcCurrency}-${dstCurrency}`);
-        }
-        const price = parseFloat(marketStats.latest);
+        const marketData = [];
 
+        for (const symbol of SYMBOLS) {
+            try {
+                // Fetch trades for each symbol
+                const tradesResponse = await fetch(`https://apiv2.nobitex.ir/v2/trades/${symbol}`);
+                if (!tradesResponse.ok) {
+                    console.error(`Failed to fetch trades for ${symbol}`);
+                    continue; // Skip this symbol if trades fail
+                }
+                const tradesData = await tradesResponse.json();
+                const recentTrades = tradesData.trades.slice(0, 20);
 
-        return { symbol, price, recentTrades };
+                const symbolOrderbook = orderbookData[symbol];
+                if (!symbolOrderbook || !symbolOrderbook.bids?.[0] || !symbolOrderbook.asks?.[0]) {
+                    console.warn(`Incomplete orderbook data for ${symbol}.`);
+                    continue;
+                }
+
+                const bestBid = parseFloat(symbolOrderbook.bids[0][0]);
+                const bestAsk = parseFloat(symbolOrderbook.asks[0][0]);
+
+                if (isNaN(bestBid) || isNaN(bestAsk)) {
+                    console.warn(`Invalid bid/ask prices for ${symbol}.`);
+                    continue;
+                }
+
+                // Use mid-price as the current price
+                const price = (bestBid + bestAsk) / 2;
+
+                marketData.push({ symbol, price, recentTrades, bestBid, bestAsk });
+
+            } catch (error) {
+                console.error(`Error processing symbol ${symbol}:`, error);
+            }
+        }
+        return marketData;
     } catch (error) {
-        console.error(`Error fetching data for ${symbol}:`, error);
-        // A common issue is a CORS error. The browser console will show a more specific message.
-        // If that happens, a backend proxy is required to bypass the browser's security restrictions.
-        if (error instanceof TypeError) { // Often indicates a network error like CORS
-            alert("Could not fetch data from Nobitex API. This is likely due to CORS policy. A backend proxy is needed to run this application.");
-            stop(); // Stop the loop if we can't fetch data
+        console.error(`Error fetching all market data:`, error);
+        if (error instanceof TypeError) {
+            alert("Could not fetch data from Nobitex API. This is likely due to CORS policy.");
+            stop();
         }
-        return null;
+        return []; // Return empty array on failure
     }
 }
 
@@ -108,7 +114,7 @@ function buy(symbol, amount, price, stateTensor) {
             stateTensor,
             timestamp: Date.now()
         };
-        pendingRewards.push(tradeInfo);
+        tradesMadeLastCycle.push(tradeInfo);
         addLog(`BOUGHT: ${tokenAmount.toFixed(6)} ${symbol} for ${amount} cash.`, tradeInfo);
     } else {
         addLog(`INFO: Not enough cash to buy ${symbol}.`);
@@ -137,7 +143,7 @@ function sell(symbol, amount, price, stateTensor) {
             stateTensor,
             timestamp: Date.now()
         };
-        pendingRewards.push(tradeInfo);
+        tradesMadeLastCycle.push(tradeInfo);
         addLog(`SOLD: ${tokenAmountToSell.toFixed(6)} ${symbol} for ${amount} cash.`, tradeInfo);
     } else {
         addLog(`INFO: Not enough ${symbol} to sell.`);
@@ -153,8 +159,8 @@ function sell(symbol, amount, price, stateTensor) {
 function createModel() {
     const newModel = tf.sequential();
     // Input layer: Takes a flattened array of market state
-    // State: [currentPrice, cash, last20TradeTypes...] (22 total)
-    newModel.add(tf.layers.dense({ inputShape: [22], units: 32, activation: 'relu' }));
+    // State: [price, cash, bestBid, bestAsk, spread, last20TradeTypes...] (24 total)
+    newModel.add(tf.layers.dense({ inputShape: [24], units: 32, activation: 'relu' }));
     // Hidden layer
     newModel.add(tf.layers.dense({ units: 16, activation: 'relu' }));
     // Output layer: 2 actions (buy, sell)
@@ -174,25 +180,28 @@ function createModel() {
  * @param {Object} marketData - The market data from fetchMarketData.
  * @returns {tf.Tensor|null} A tensor representing the current state, or null if data is invalid.
  */
-function preprocessData(marketData) {
-    if (!marketData || !marketData.recentTrades || marketData.recentTrades.length === 0) {
+function preprocessData({ price, bestBid, bestAsk, recentTrades }) {
+    if (!price || !bestBid || !bestAsk || !recentTrades || recentTrades.length === 0) {
         return null;
     }
 
-    const { price, recentTrades } = marketData;
-
     const avgPrice = recentTrades.reduce((acc, trade) => acc + parseFloat(trade.price), 0) / recentTrades.length;
-    const normalizedPrice = price / avgPrice;
+    if (isNaN(avgPrice) || avgPrice === 0) return null;
 
-    const normalizedCash = wallet.cash / 10000; // Based on initial cash
+    const normalizedPrice = price / avgPrice;
+    const normalizedBestBid = bestBid / avgPrice;
+    const normalizedBestAsk = bestAsk / avgPrice;
+    const spread = (bestAsk - bestBid) / avgPrice;
+
+    const normalizedCash = wallet.cash / 10000;
 
     const tradeTypes = recentTrades.map(trade => (trade.type === 'buy' ? 1 : -1));
     while (tradeTypes.length < 20) {
-        tradeTypes.push(0); // Pad if less than 20 trades
+        tradeTypes.push(0);
     }
 
-    const state = [normalizedPrice, normalizedCash, ...tradeTypes];
-    return tf.tensor2d(state, [1, 22]); // Shape: [1, 22]
+    const state = [normalizedPrice, normalizedCash, normalizedBestBid, normalizedBestAsk, spread, ...tradeTypes];
+    return tf.tensor2d(state, [1, 24]);
 }
 
 /**
@@ -311,34 +320,41 @@ function updateChart(newValue) {
 
 
 // --- MAIN LOOP ---
+async function rewardAndTrain(marketData) {
+    if (!marketData || marketData.length === 0) {
+        // Can't calculate rewards without fresh data
+        // Dispose tensors to prevent memory leaks
+        tradesMadeLastCycle.forEach(trade => trade.stateTensor.dispose());
+        tradesMadeLastCycle = [];
+        return;
+    }
 
-async function checkPendingRewards() {
-    const now = Date.now();
-    for (let i = pendingRewards.length - 1; i >= 0; i--) {
-        const trade = pendingRewards[i];
-        if (now - trade.timestamp >= REWARD_DELAY) {
-            const currentData = await fetchMarketData(trade.symbol);
-            if (currentData) {
-                const priceNow = currentData.price;
-                const priceThen = trade.price;
-                let reward = 0;
+    for (const trade of tradesMadeLastCycle) {
+        const currentData = marketData.find(d => d.symbol === trade.symbol);
+        if (currentData) {
+            const priceNow = currentData.price;
+            const priceThen = trade.price;
+            let reward = 0;
 
-                if (trade.action === 'buy') {
-                    // Reward is the percentage price increase
-                    reward = (priceNow - priceThen) / priceThen;
-                } else if (trade.action === 'sell') {
-                    // Reward is the percentage price decrease (avoided loss)
-                    reward = (priceThen - priceNow) / priceThen;
-                }
-
-                await trainModel(trade.stateTensor, trade.action, reward);
-                // Remove the trade from pending rewards
-                pendingRewards.splice(i, 1);
+            if (trade.action === 'buy') {
+                // Positive reward if price went up
+                reward = (priceNow - priceThen) / priceThen;
+            } else if (trade.action === 'sell') {
+                // Positive reward if price went down (avoided loss)
+                reward = (priceThen - priceNow) / priceThen;
             }
+
+            // Train the model with the calculated reward
+            await trainModel(trade.stateTensor, trade.action, reward);
+        } else {
+            // If we can't find market data, we can't reward. Dispose tensor.
+            trade.stateTensor.dispose();
         }
     }
-}
 
+    // Clear the array for the next cycle
+    tradesMadeLastCycle = [];
+}
 
 async function runMainLoop() {
     console.log("Running main loop...");
@@ -348,10 +364,11 @@ async function runMainLoop() {
         return;
     }
 
-    const marketData = await Promise.all(SYMBOLS.map(fetchMarketData));
-    const validMarketData = marketData.filter(d => d !== null);
+    const marketData = await fetchAllMarketData();
 
-    for (const data of validMarketData) {
+    await rewardAndTrain(marketData);
+
+    for (const data of marketData) {
         const stateTensor = preprocessData(data);
         if (stateTensor) {
             const decision = await makeDecision(stateTensor.clone());
@@ -367,8 +384,7 @@ async function runMainLoop() {
         }
     }
 
-    await checkPendingRewards();
-    updateUI(validMarketData);
+    updateUI(marketData);
 }
 
 function start() {
