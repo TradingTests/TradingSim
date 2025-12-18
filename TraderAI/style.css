@@ -1,17 +1,69 @@
+/* TraderAI - Styling */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --bg-main: #111827;
+    --bg-surface: #1f2937;
+    --bg-inset: #111827;
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+    --border-main: #374151;
+    --primary-500: #3b82f6;
+    --primary-600: #2563eb;
+    --green-500: #22c55e;
+    --red-500: #ef4444;
+    --font-family: 'Inter', sans-serif;
+    --card-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+}
+
 body {
-    font-family: sans-serif;
+    font-family: var(--font-family);
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 2rem;
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
+h1, h2, h3 {
+    margin: 0;
+    font-weight: 600;
+}
+
+h1 {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+h2 {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid var(--border-main);
+    padding-bottom: 0.5rem;
+}
+
 #dashboard {
     display: grid;
+    grid-template-columns: 1fr 2fr;
+    grid-template-rows: auto 1fr;
     grid-template-areas:
-        "controls controls"
-        "portfolio trade-log";
-    gap: 20px;
-    width: 80%;
+        "controls portfolio"
+        "tradelog portfolio";
+    gap: 2rem;
+    width: 100%;
+    max-width: 1200px;
+}
+
+.card {
+    background-color: var(--bg-surface);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    box-shadow: var(--card-shadow);
+    border: 1px solid var(--border-main);
 }
 
 #controls {
@@ -20,17 +72,127 @@ body {
 
 #portfolio {
     grid-area: portfolio;
+    display: flex;
+    flex-direction: column;
 }
 
 #trade-log {
-    grid-area: trade-log;
+    grid-area: tradelog;
+    overflow-y: auto;
+    max-height: 400px;
+}
+
+#portfolio-chart-container {
+    flex-grow: 1;
+    position: relative;
+    background-color: var(--bg-inset);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+#portfolio-chart {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+button {
+    font-family: var(--font-family);
+    font-size: 1rem;
+    font-weight: 500;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    background-color: var(--primary-500);
+    color: white;
+}
+
+button:hover {
+    background-color: var(--primary-600);
+}
+
+#start-stop-btn.running {
+    background-color: var(--red-500);
+}
+
+#start-stop-btn.running:hover {
+    background-color: #d03838;
+}
+
+label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-right: 0.5rem;
+}
+
+input[type="number"] {
+    font-family: var(--font-family);
+    font-size: 1rem;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-main);
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    width: 100px;
+}
+
+.controls-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    align-items: center;
+}
+
+#wallet {
+    margin-top: 1rem;
+}
+
+#wallet p {
+    font-size: 1.125rem;
+    font-weight: 500;
+}
+
+#wallet h3 {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
 }
 
 ul {
     list-style-type: none;
     padding: 0;
+    margin: 0;
 }
 
-li {
-    margin-bottom: 5px;
+#token-list li, #log-list li {
+    background-color: var(--bg-inset);
+    padding: 0.75rem 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#log-list li {
+    font-family: 'Menlo', 'Consolas', monospace;
+}
+
+#log-list .reward-buttons button {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    margin-left: 0.5rem;
+}
+
+#log-list .reward-buttons .pos-btn {
+    background-color: var(--green-500);
+}
+
+#log-list .reward-buttons .neg-btn {
+    background-color: var(--red-500);
 }
