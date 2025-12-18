@@ -19,6 +19,24 @@
                     <input type="number" id="trade-amount" value="100">
                 </div>
             </div>
+
+            <div id="settings">
+                <h3>Settings</h3>
+                <div class="controls-grid">
+                    <div>
+                        <label for="target-currency">Target Currency:</label>
+                        <select id="target-currency">
+                            <option value="IRT">IRT</option>
+                            <option value="USDT">USDT</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="initial-cash">Initial Cash:</label>
+                        <input type="number" id="initial-cash" value="10000">
+                    </div>
+                </div>
+                <button id="apply-settings-btn">Apply & Reset</button>
+            </div>
         </div>
 
         <div id="trade-log" class="card">

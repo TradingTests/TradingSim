@@ -139,6 +139,37 @@ input[type="number"] {
     width: 100px;
 }
 
+#settings {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-main);
+}
+
+#settings h3 {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+#apply-settings-btn {
+    margin-top: 1rem;
+    width: 100%;
+    background-color: var(--primary-600);
+}
+#apply-settings-btn:hover {
+    background-color: var(--primary-500);
+}
+
+select {
+    font-family: var(--font-family);
+    font-size: 1rem;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    border: 1px solid var(--border-main);
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+}
+
 .controls-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

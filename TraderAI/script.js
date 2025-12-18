@@ -2,7 +2,11 @@
 console.log("TraderAI script loaded.");
 
 // --- CONFIG ---
-const SYMBOLS = ['BTCIRT', 'ETHIRT', 'USDTIRT'];
+const ALL_SYMBOLS = {
+    USDT: ['BTCUSDT', 'ETHUSDT', 'TONUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'NOTUSDT', 'SHIBUSDT', 'BNBUSDT', 'TRXUSDT', 'ADAUSDT', 'AVAXUSDT', 'LINKUSDT'],
+    IRT: ['BTCIRT', 'ETHIRT', 'USDTIRT', 'TONIRT', 'XRPIRT', 'DOGEIRT', 'SHIBIRT', 'BNBIRT', 'TRXIRT', 'ADAIRT', 'AVAXIRT', 'LINKIRT']
+};
+let activeSymbols = ALL_SYMBOLS.IRT; // Default to IRT for now
 const LOOP_INTERVAL = 15000; // 15 seconds
 const LEARNING_RATE = 0.01;
 const EXPLORATION_RATE = 0.1; // 10% chance of exploring
@@ -47,7 +51,7 @@ async function fetchAllMarketData() {
 
         const marketData = [];
 
-        for (const symbol of SYMBOLS) {
+        for (const symbol of activeSymbols) {
             try {
                 // Fetch trades for each symbol
                 const tradesResponse = await fetch(`https://apiv2.nobitex.ir/v2/trades/${symbol}`);
@@ -84,11 +88,8 @@ async function fetchAllMarketData() {
         return marketData;
     } catch (error) {
         console.error(`Error fetching all market data:`, error);
-        if (error instanceof TypeError) {
-            alert("Could not fetch data from Nobitex API. This is likely due to CORS policy.");
-            stop();
-        }
-        return []; // Return empty array on failure
+        addLog("Failed to fetch market data. Will retry next cycle.");
+        return []; // Return empty array on failure, allowing the loop to retry.
     }
 }
 
@@ -448,8 +449,42 @@ function init() {
         }
     });
 
+    const applySettingsBtn = document.getElementById('apply-settings-btn');
+    applySettingsBtn.addEventListener('click', applySettings);
+
+    applySettings(); // Apply default settings on init
+    addLog("TraderAI initialized. Apply settings and click 'Start' to begin.");
+}
+
+function applySettings() {
+    stop(); // Stop the bot if it's running
+
+    const targetCurrency = document.getElementById('target-currency').value;
+    const initialCash = parseFloat(document.getElementById('initial-cash').value);
+
+    if (isNaN(initialCash) || initialCash <= 0) {
+        alert("Please enter a valid initial cash amount.");
+        return;
+    }
+
+    activeSymbols = ALL_SYMBOLS[targetCurrency];
+    wallet.cash = initialCash;
+    wallet.tokens = {};
+    tradesMadeLastCycle = [];
+
+    // Reset UI
     updateUI([]);
-    addLog("TraderAI initialized. Click 'Start' to begin.");
+    portfolioHistory.length = 0;
+    if (portfolioChart) {
+        portfolioChart.data.labels = [];
+        portfolioChart.data.datasets.forEach((dataset) => {
+            dataset.data = [];
+        });
+        portfolioChart.update();
+    }
+
+    logListUl.innerHTML = '';
+    addLog(`Settings applied. Target: ${targetCurrency}, Initial Cash: ${initialCash}.`);
 }
 
 init();
