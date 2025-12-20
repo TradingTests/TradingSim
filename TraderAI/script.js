@@ -261,50 +261,36 @@ async function trainModel(stateTensor, action, reward) {
 function addLog(message, tradeInfo = null) {
     const li = document.createElement('li');
     li.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
-
-    if (tradeInfo) {
-        const rewardContainer = document.createElement('span');
-        const posButton = document.createElement('button');
-        posButton.textContent = '+1';
-        posButton.onclick = () => {
-            trainModel(tradeInfo.stateTensor, tradeInfo.action, 1);
-            rewardContainer.remove(); // Remove buttons after clicking
-        };
-
-        const negButton = document.createElement('button');
-        negButton.textContent = '-1';
-        negButton.onclick = () => {
-            trainModel(tradeInfo.stateTensor, tradeInfo.action, -1);
-            rewardContainer.remove();
-        };
-
-        rewardContainer.appendChild(posButton);
-        rewardContainer.appendChild(negButton);
-        li.appendChild(rewardContainer);
-    }
     logListUl.prepend(li);
 }
 
-function updateUI(marketData) {
-    cashValueSpan.textContent = wallet.cash.toFixed(2);
-
-    tokenListUl.innerHTML = '';
+function calculatePortfolioValue(marketData) {
+    if (!marketData) return wallet.cash;
     let totalTokenValue = 0;
     for (const symbol in wallet.tokens) {
         if (wallet.tokens[symbol] > 0) {
-            const li = document.createElement('li');
-            li.textContent = `${symbol}: ${wallet.tokens[symbol].toFixed(6)}`;
-            tokenListUl.appendChild(li);
-
-            // Use the latest market data to calculate total value
             const currentMarket = marketData.find(m => m.symbol === symbol);
             if (currentMarket) {
                 totalTokenValue += wallet.tokens[symbol] * currentMarket.price;
             }
         }
     }
+    return wallet.cash + totalTokenValue;
+}
 
-    const portfolioValue = wallet.cash + totalTokenValue;
+function updateUI(marketData) {
+    cashValueSpan.textContent = wallet.cash.toFixed(2);
+
+    tokenListUl.innerHTML = '';
+    for (const symbol in wallet.tokens) {
+        if (wallet.tokens[symbol] > 0) {
+            const li = document.createElement('li');
+            li.textContent = `${symbol}: ${wallet.tokens[symbol].toFixed(6)}`;
+            tokenListUl.appendChild(li);
+        }
+    }
+
+    const portfolioValue = calculatePortfolioValue(marketData);
     updateChart(portfolioValue);
 }
 
@@ -319,38 +305,44 @@ function updateChart(newValue) {
 
 // --- MAIN LOOP ---
 async function rewardAndTrain(marketData) {
+    // If there's no fresh market data, we can't calculate rewards.
+    // Dispose of any pending trade tensors to prevent memory leaks and try again next cycle.
     if (!marketData || marketData.length === 0) {
-        // Can't calculate rewards without fresh data
-        // Dispose tensors to prevent memory leaks
         tradesMadeLastCycle.forEach(trade => trade.stateTensor.dispose());
         tradesMadeLastCycle = [];
         return;
     }
 
+    // Iterate over each trade made in the last cycle to calculate its individual reward.
     for (const trade of tradesMadeLastCycle) {
+        // Find the current market data for the asset that was traded.
         const currentData = marketData.find(d => d.symbol === trade.symbol);
+
         if (currentData) {
             const priceNow = currentData.price;
             const priceThen = trade.price;
             let reward = 0;
 
+            // For a 'buy' action, the reward is positive if the price has increased since the trade.
             if (trade.action === 'buy') {
-                // Positive reward if price went up
                 reward = (priceNow - priceThen) / priceThen;
-            } else if (trade.action === 'sell') {
-                // Positive reward if price went down (avoided loss)
+            }
+            // For a 'sell' action, the reward is positive if the price has decreased (i.e., we avoided a loss).
+            else if (trade.action === 'sell') {
                 reward = (priceThen - priceNow) / priceThen;
             }
 
-            // Train the model with the calculated reward
+            // Train the model with the state, action, and calculated reward.
             await trainModel(trade.stateTensor, trade.action, reward);
         } else {
-            // If we can't find market data, we can't reward. Dispose tensor.
+            // If we can't find current market data for the symbol, we can't calculate a reward.
+            // Dispose of the tensor to prevent a memory leak.
+            addLog(`Could not find market data for ${trade.symbol}. Skipping reward.`);
             trade.stateTensor.dispose();
         }
     }
 
-    // Clear the array for the next cycle
+    // Clear the list of trades for the next cycle.
     tradesMadeLastCycle = [];
 }
 
