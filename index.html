@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trading Simulation • Nobitex Public APIs + LocalStorage</title>
+  <title>Spot Trading • Nobitex Public APIs + LocalStorage</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style>
     :root { color-scheme: dark; }
-    /* Subtle scrollbar */
     ::-webkit-scrollbar { width: 10px; height: 10px; }
     ::-webkit-scrollbar-thumb { background: rgba(148,163,184,.35); border-radius: 999px; }
     ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,.5); }
@@ -15,7 +14,6 @@
     .glass { background: rgba(2, 6, 23, 0.55); backdrop-filter: blur(10px); }
     .ring-soft { box-shadow: 0 0 0 1px rgba(148,163,184,.18) inset; }
 
-    /* lightweight skeleton */
     .skeleton { position: relative; overflow: hidden; }
     .skeleton::after {
       content: "";
@@ -28,6 +26,9 @@
     @keyframes shimmer { 100% { left: 150%; } }
 
     canvas { image-rendering: auto; }
+    
+    .order-row:hover { background: rgba(148,163,184,.08); }
+    .order-row { cursor: pointer; transition: background .15s; }
   </style>
 </head>
 <body class="h-full bg-slate-950 text-slate-100">
@@ -37,10 +38,10 @@
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
         <div class="flex items-center gap-3">
           <div class="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-400 grid place-items-center ring-soft">
-            <span class="font-black">TS</span>
+            <span class="font-black">ST</span>
           </div>
           <div>
-            <div class="font-semibold leading-tight">Trading Simulation</div>
+            <div class="font-semibold leading-tight">Spot Trading</div>
             <div class="text-xs text-slate-400">Nobitex public market data + LocalStorage portfolio</div>
           </div>
         </div>
@@ -51,9 +52,6 @@
             <span class="text-xs text-slate-600">•</span>
             <span id="lastUpdate" class="text-xs text-slate-400">—</span>
           </div>
-          <a href="TraderAI/index.html" class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">
-            TraderAI
-          </a>
           <button id="btnExport" class="hidden sm:inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">
             Export
           </button>
@@ -71,7 +69,7 @@
     <main class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <!-- Left column -->
-        <section class="lg:col-span-5 space-y-5">
+        <section class="lg:col-span-4 space-y-5">
           <!-- Account / summary -->
           <div class="glass ring-soft rounded-2xl p-4">
             <div class="flex items-start justify-between gap-4">
@@ -79,225 +77,291 @@
                 <div class="text-sm text-slate-400">Account</div>
                 <div class="mt-1 flex flex-wrap items-center gap-2">
                   <div class="text-xl font-semibold"><span id="equity">—</span> <span id="targetBadge" class="text-sm text-slate-400">—</span></div>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-2">
                   <span id="pnlPill" class="text-xs rounded-full px-2 py-1 border border-slate-800 bg-slate-900">P&L: —</span>
                   <span id="realizedPill" class="text-xs rounded-full px-2 py-1 border border-slate-800 bg-slate-900">Realized: —</span>
                 </div>
                 <div class="mt-2 text-xs text-slate-400">
                   Cash: <span id="cash">—</span>
                   <span class="text-slate-600">•</span>
-                  Initial: <span id="initial">—</span>
-                  <span class="text-slate-600">•</span>
                   Fee: <span id="fee">—</span>
                 </div>
               </div>
               <div class="flex flex-col items-end gap-2">
-                <button id="btnRefreshPrices" class="inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">Refresh prices</button>
-                <button id="btnReset" class="inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800 text-rose-200">Reset portfolio</button>
+                <button id="btnRefreshPrices" class="inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800">Refresh</button>
+                <button id="btnReset" class="inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 text-rose-200">Reset</button>
               </div>
             </div>
           </div>
 
-          <!-- Market selector + quote -->
+          <!-- Market selector -->
           <div class="glass ring-soft rounded-2xl p-4">
             <div class="flex items-center justify-between gap-3">
               <div>
                 <div class="text-sm text-slate-400">Market</div>
                 <div class="mt-1 font-semibold flex items-center gap-2">
                   <span id="marketSymbol" class="text-lg">—</span>
-                  <span id="marketMeta" class="text-xs text-slate-400">—</span>
                 </div>
               </div>
-              <div class="flex items-center gap-2">
-                <button id="btnQuickBTC" class="hidden sm:inline-flex rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">BTC</button>
-                <button id="btnQuickETH" class="hidden sm:inline-flex rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">ETH</button>
-                <button id="btnRefreshMarket" class="inline-flex rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">Refresh</button>
-              </div>
+              <button id="btnRefreshMarket" class="inline-flex rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">Refresh</button>
             </div>
 
-            <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="text-xs text-slate-400">Symbol (e.g. BTCUSDT / BTCIRT)</label>
-                <div class="mt-1 flex gap-2">
-                  <input id="symbolInput" class="w-full rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600" placeholder="BTCUSDT" />
-                  <button id="btnSetSymbol" class="rounded-xl px-3 py-2 text-sm bg-indigo-600 hover:bg-indigo-500">Set</button>
-                </div>
-                <div class="mt-2 flex flex-wrap gap-2" id="symbolChips"></div>
+            <div class="mt-4">
+              <label class="text-xs text-slate-400">Symbol</label>
+              <div class="mt-1 flex gap-2">
+                <input id="symbolInput" class="w-full rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600" placeholder="BTCUSDT" />
+                <button id="btnSetSymbol" class="rounded-xl px-3 py-2 text-sm bg-indigo-600 hover:bg-indigo-500">Set</button>
               </div>
-
-              <div class="grid grid-cols-2 gap-3">
-                <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
-                  <div class="text-xs text-slate-400">Best Ask (buy)</div>
-                  <div id="bestAsk" class="mt-1 font-semibold">—</div>
-                </div>
-                <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
-                  <div class="text-xs text-slate-400">Best Bid (sell)</div>
-                  <div id="bestBid" class="mt-1 font-semibold">—</div>
-                </div>
-                <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
-                  <div class="text-xs text-slate-400">Mid</div>
-                  <div id="midPrice" class="mt-1 font-semibold">—</div>
-                </div>
-                <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
-                  <div class="text-xs text-slate-400">Spread</div>
-                  <div id="spread" class="mt-1 font-semibold">—</div>
-                </div>
-              </div>
+              <div class="mt-2 flex flex-wrap gap-2" id="symbolChips"></div>
             </div>
 
-            <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div class="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
-                <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
-                  <div class="text-sm font-semibold">Orderbook</div>
-                  <div class="text-xs text-slate-400">Top 10</div>
-                </div>
-                <div class="grid grid-cols-2">
-                  <div class="p-3 border-r border-slate-800">
-                    <div class="text-xs text-slate-400 mb-2">Bids</div>
-                    <div id="bids" class="space-y-1 text-xs"></div>
-                  </div>
-                  <div class="p-3">
-                    <div class="text-xs text-slate-400 mb-2">Asks</div>
-                    <div id="asks" class="space-y-1 text-xs"></div>
-                  </div>
-                </div>
+            <!-- Price ticker -->
+            <div class="mt-4 grid grid-cols-2 gap-3">
+              <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
+                <div class="text-xs text-slate-400">Best Ask</div>
+                <div id="bestAsk" class="mt-1 font-semibold text-rose-200">—</div>
               </div>
+              <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
+                <div class="text-xs text-slate-400">Best Bid</div>
+                <div id="bestBid" class="mt-1 font-semibold text-emerald-200">—</div>
+              </div>
+            </div>
+          </div>
 
-              <div class="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
-                <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
-                  <div class="text-sm font-semibold">Recent trades</div>
-                  <div class="text-xs text-slate-400">Last 20</div>
+          <!-- Orderbook -->
+          <div class="glass ring-soft rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <div class="text-sm font-semibold">Order Book</div>
+              <div class="text-xs text-slate-400">Click to fill price</div>
+            </div>
+            <div class="grid grid-cols-2 divide-x divide-slate-800">
+              <div class="p-3">
+                <div class="text-xs text-slate-400 mb-2 flex justify-between">
+                  <span>Price (Bid)</span>
+                  <span>Amount</span>
                 </div>
-                <div id="recentTrades" class="p-3 max-h-[280px] overflow-auto text-xs"></div>
+                <div id="bids" class="space-y-0.5 text-xs"></div>
+              </div>
+              <div class="p-3">
+                <div class="text-xs text-slate-400 mb-2 flex justify-between">
+                  <span>Price (Ask)</span>
+                  <span>Amount</span>
+                </div>
+                <div id="asks" class="space-y-0.5 text-xs"></div>
+              </div>
+            </div>
+            <div class="px-4 py-2 border-t border-slate-800 bg-slate-900/40">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-slate-400">Spread</span>
+                <span id="spread" class="text-xs font-mono">—</span>
               </div>
             </div>
           </div>
         </section>
 
         <!-- Right column -->
-        <section class="lg:col-span-7 space-y-5">
-          <!-- Trading panel -->
+        <section class="lg:col-span-8 space-y-5">
+          <!-- Spot Trading Panel -->
           <div class="glass ring-soft rounded-2xl p-4">
-            <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center justify-between gap-3 mb-4">
               <div>
-                <div class="text-sm text-slate-400">Trade simulation</div>
-                <div class="mt-1 font-semibold">Market order at best bid/ask + fee</div>
+                <div class="text-sm text-slate-400">Spot Trading</div>
+                <div class="mt-1 font-semibold text-lg"><span id="tradeAsset">—</span> / <span id="tradeQuote">—</span></div>
               </div>
-              <div class="inline-flex rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
-                <button id="tabBuy" class="px-4 py-2 text-sm font-semibold bg-emerald-600/30 text-emerald-200">Buy</button>
-                <button id="tabSell" class="px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800">Sell</button>
+              <div class="text-right">
+                <div class="text-xs text-slate-400">Last Price</div>
+                <div id="lastPrice" class="font-semibold text-xl">—</div>
               </div>
             </div>
 
-            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-                <div class="flex items-start justify-between">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Buy Panel -->
+              <div class="rounded-2xl border border-emerald-900/40 bg-emerald-950/10 p-4">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="text-lg font-bold text-emerald-400">Buy</div>
+                  <div class="text-xs text-slate-400">
+                    Available: <span id="buyAvailable" class="text-emerald-200 font-semibold">—</span>
+                  </div>
+                </div>
+                
+                <div class="space-y-4">
                   <div>
-                    <div class="text-xs text-slate-400">You are trading</div>
-                    <div class="mt-1 font-semibold"><span id="tradeAsset">—</span> / <span id="tradeQuote">—</span></div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-xs text-slate-400">Price</label>
+                      <button id="btnBuyMarket" class="text-xs text-emerald-400 hover:text-emerald-300">Market</button>
+                    </div>
+                    <div class="relative">
+                      <input id="buyPriceInput" type="number" step="any" min="0" class="w-full rounded-xl bg-slate-950 border border-emerald-900/40 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 pr-16" placeholder="Market price" />
+                      <span id="buyPriceUnit" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">USDT</span>
+                    </div>
                   </div>
-                  <div class="text-right">
-                    <div class="text-xs text-slate-400">Available</div>
-                    <div id="available" class="mt-1 font-semibold">—</div>
-                  </div>
-                </div>
-
-                <div class="mt-4">
-                  <label class="text-xs text-slate-400">Amount (<span id="assetLabel">—</span>)</label>
-                  <input id="amountInput" type="number" step="any" min="0" class="mt-1 w-full rounded-xl bg-slate-950 border border-slate-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600" placeholder="0.01" />
-                  <div class="mt-2 flex flex-wrap gap-2" id="quickBtns"></div>
-                </div>
-
-                <div class="mt-4 grid grid-cols-2 gap-3">
-                  <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3">
-                    <div class="text-xs text-slate-400">Exec price</div>
-                    <div id="execPrice" class="mt-1 font-semibold">—</div>
-                  </div>
-                  <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3">
-                    <div class="text-xs text-slate-400">Fee</div>
-                    <div id="feePreview" class="mt-1 font-semibold">—</div>
-                  </div>
-                  <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 col-span-2">
-                    <div class="text-xs text-slate-400" id="totalLabel">Total</div>
-                    <div id="totalPreview" class="mt-1 font-semibold">—</div>
-                  </div>
-                </div>
-
-                <button id="btnExecute" class="mt-4 w-full rounded-xl px-4 py-3 font-semibold bg-emerald-600 hover:bg-emerald-500">Execute Buy</button>
-                <div id="tradeHint" class="mt-3 text-xs text-slate-400">Tip: your selected target currency must match the market quote (USDT or IRT).</div>
-              </div>
-
-              <div class="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
-                <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                  
                   <div>
-                    <div class="text-sm font-semibold">Portfolio</div>
-                    <div class="text-xs text-slate-400">Holdings are valued using cached mids (refresh if needed).</div>
+                    <label class="text-xs text-slate-400 mb-1 block">Amount</label>
+                    <div class="relative">
+                      <input id="buyAmountInput" type="number" step="any" min="0" class="w-full rounded-xl bg-slate-950 border border-emerald-900/40 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 pr-16" placeholder="0.00" />
+                      <span id="buyAmountUnit" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">BTC</span>
+                    </div>
+                    <div class="mt-2 flex gap-1" id="buyQuickBtns">
+                      <button data-pct="0.25" class="flex-1 text-xs py-1.5 rounded-lg border border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-900/30 text-emerald-200">25%</button>
+                      <button data-pct="0.50" class="flex-1 text-xs py-1.5 rounded-lg border border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-900/30 text-emerald-200">50%</button>
+                      <button data-pct="0.75" class="flex-1 text-xs py-1.5 rounded-lg border border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-900/30 text-emerald-200">75%</button>
+                      <button data-pct="1.00" class="flex-1 text-xs py-1.5 rounded-lg border border-emerald-900/40 bg-emerald-950/30 hover:bg-emerald-900/30 text-emerald-200">100%</button>
+                    </div>
                   </div>
-                  <div class="text-xs text-slate-400">LocalStorage</div>
-                </div>
-                <div class="p-4 overflow-auto max-h-[420px]">
-                  <table class="w-full text-sm">
-                    <thead class="text-xs text-slate-400">
-                      <tr class="border-b border-slate-800">
-                        <th class="text-left py-2">Asset</th>
-                        <th class="text-right py-2">Amount</th>
-                        <th class="text-right py-2">Avg cost</th>
-                        <th class="text-right py-2">Mid</th>
-                        <th class="text-right py-2">Value</th>
-                        <th class="text-right py-2">Unr. P&L</th>
-                      </tr>
-                    </thead>
-                    <tbody id="portfolioBody" class="align-top"></tbody>
-                  </table>
-                  <div id="portfolioEmpty" class="hidden text-sm text-slate-400 py-6">No holdings yet. Try a simulated buy.</div>
+                  
+                  <div class="rounded-xl bg-slate-950/50 border border-slate-800 p-3 space-y-2">
+                    <div class="flex justify-between text-xs">
+                      <span class="text-slate-400">Order Value</span>
+                      <span id="buySubtotal" class="text-slate-200">—</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                      <span class="text-slate-400">Fee</span>
+                      <span id="buyFee" class="text-slate-200">—</span>
+                    </div>
+                    <div class="flex justify-between text-sm font-semibold border-t border-slate-800 pt-2">
+                      <span class="text-slate-300">Total</span>
+                      <span id="buyTotal" class="text-emerald-200">—</span>
+                    </div>
+                  </div>
+                  
+                  <button id="btnBuy" class="w-full rounded-xl px-4 py-3.5 font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors">
+                    Buy <span id="buyBtnAsset">—</span>
+                  </button>
                 </div>
               </div>
+              
+              <!-- Sell Panel -->
+              <div class="rounded-2xl border border-rose-900/40 bg-rose-950/10 p-4">
+                <div class="flex items-center justify-between mb-4">
+                  <div class="text-lg font-bold text-rose-400">Sell</div>
+                  <div class="text-xs text-slate-400">
+                    Available: <span id="sellAvailable" class="text-rose-200 font-semibold">—</span>
+                  </div>
+                </div>
+                
+                <div class="space-y-4">
+                  <div>
+                    <div class="flex items-center justify-between mb-1">
+                      <label class="text-xs text-slate-400">Price</label>
+                      <button id="btnSellMarket" class="text-xs text-rose-400 hover:text-rose-300">Market</button>
+                    </div>
+                    <div class="relative">
+                      <input id="sellPriceInput" type="number" step="any" min="0" class="w-full rounded-xl bg-slate-950 border border-rose-900/40 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-600 pr-16" placeholder="Market price" />
+                      <span id="sellPriceUnit" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">USDT</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label class="text-xs text-slate-400 mb-1 block">Amount</label>
+                    <div class="relative">
+                      <input id="sellAmountInput" type="number" step="any" min="0" class="w-full rounded-xl bg-slate-950 border border-rose-900/40 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-600 pr-16" placeholder="0.00" />
+                      <span id="sellAmountUnit" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">BTC</span>
+                    </div>
+                    <div class="mt-2 flex gap-1" id="sellQuickBtns">
+                      <button data-pct="0.25" class="flex-1 text-xs py-1.5 rounded-lg border border-rose-900/40 bg-rose-950/30 hover:bg-rose-900/30 text-rose-200">25%</button>
+                      <button data-pct="0.50" class="flex-1 text-xs py-1.5 rounded-lg border border-rose-900/40 bg-rose-950/30 hover:bg-rose-900/30 text-rose-200">50%</button>
+                      <button data-pct="0.75" class="flex-1 text-xs py-1.5 rounded-lg border border-rose-900/40 bg-rose-950/30 hover:bg-rose-900/30 text-rose-200">75%</button>
+                      <button data-pct="1.00" class="flex-1 text-xs py-1.5 rounded-lg border border-rose-900/40 bg-rose-950/30 hover:bg-rose-900/30 text-rose-200">100%</button>
+                    </div>
+                  </div>
+                  
+                  <div class="rounded-xl bg-slate-950/50 border border-slate-800 p-3 space-y-2">
+                    <div class="flex justify-between text-xs">
+                      <span class="text-slate-400">Order Value</span>
+                      <span id="sellSubtotal" class="text-slate-200">—</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                      <span class="text-slate-400">Fee</span>
+                      <span id="sellFee" class="text-slate-200">—</span>
+                    </div>
+                    <div class="flex justify-between text-sm font-semibold border-t border-slate-800 pt-2">
+                      <span class="text-slate-300">Total</span>
+                      <span id="sellTotal" class="text-rose-200">—</span>
+                    </div>
+                  </div>
+                  
+                  <button id="btnSell" class="w-full rounded-xl px-4 py-3.5 font-bold text-white bg-rose-600 hover:bg-rose-500 transition-colors">
+                    Sell <span id="sellBtnAsset">—</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div id="tradeHint" class="mt-4 text-xs text-slate-400 text-center">Leave price empty for market order • Click orderbook prices to fill</div>
+          </div>
+
+          <!-- Portfolio -->
+          <div class="glass ring-soft rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <div class="text-sm font-semibold">Portfolio</div>
+                <div class="text-xs text-slate-400">Your holdings</div>
+              </div>
+              <div class="text-xs text-slate-400">LocalStorage</div>
+            </div>
+            <div class="p-4 overflow-auto max-h-[300px]">
+              <table class="w-full text-sm">
+                <thead class="text-xs text-slate-400">
+                  <tr class="border-b border-slate-800">
+                    <th class="text-left py-2">Asset</th>
+                    <th class="text-right py-2">Amount</th>
+                    <th class="text-right py-2">Avg Cost</th>
+                    <th class="text-right py-2">Value</th>
+                    <th class="text-right py-2">P&L</th>
+                  </tr>
+                </thead>
+                <tbody id="portfolioBody" class="align-top"></tbody>
+              </table>
+              <div id="portfolioEmpty" class="hidden text-sm text-slate-400 py-6 text-center">No holdings yet. Start trading!</div>
             </div>
           </div>
 
-          <!-- Chart + history -->
+          <!-- Chart + Recent trades -->
           <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div class="glass ring-soft rounded-2xl overflow-hidden">
               <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-                <div>
-                  <div class="text-sm font-semibold">OHLC (close)</div>
-                  <div class="text-xs text-slate-400">History from /market/udf/history</div>
-                </div>
+                <div class="text-sm font-semibold">Price Chart</div>
                 <div class="flex items-center gap-2">
-                  <select id="resolution" class="rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-sm">
-                    <option value="60">1h</option>
-                    <option value="240">4h</option>
-                    <option value="D">1D</option>
+                  <select id="resolution" class="rounded-xl bg-slate-900 border border-slate-800 px-2 py-1.5 text-xs">
                     <option value="5">5m</option>
                     <option value="15">15m</option>
+                    <option value="60" selected>1h</option>
+                    <option value="240">4h</option>
+                    <option value="D">1D</option>
                   </select>
-                  <button id="btnReloadChart" class="rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">Reload</button>
+                  <button id="btnReloadChart" class="rounded-xl px-2 py-1.5 text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800">↻</button>
                 </div>
               </div>
               <div class="p-4">
-                <canvas id="chart" class="w-full h-[260px] rounded-xl border border-slate-800 bg-slate-900/40"></canvas>
+                <canvas id="chart" class="w-full h-[200px] rounded-xl border border-slate-800 bg-slate-900/40"></canvas>
                 <div class="mt-2 text-xs text-slate-400" id="chartMeta">—</div>
               </div>
             </div>
 
             <div class="glass ring-soft rounded-2xl overflow-hidden">
               <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-                <div>
-                  <div class="text-sm font-semibold">Simulated trade history</div>
-                  <div class="text-xs text-slate-400">Your actions (stored locally)</div>
-                </div>
-                <div class="flex items-center gap-2">
-                  <button id="btnClearHistory" class="rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800 text-rose-200">Clear</button>
-                </div>
+                <div class="text-sm font-semibold">Trade History</div>
+                <button id="btnClearHistory" class="rounded-xl px-2 py-1.5 text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 text-rose-200">Clear</button>
               </div>
-              <div id="tradeHistory" class="p-4 max-h-[340px] overflow-auto"></div>
+              <div id="tradeHistory" class="p-4 max-h-[260px] overflow-auto"></div>
             </div>
+          </div>
+
+          <!-- Recent market trades -->
+          <div class="glass ring-soft rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <div class="text-sm font-semibold">Recent Market Trades</div>
+              <div class="text-xs text-slate-400">Live feed</div>
+            </div>
+            <div id="recentTrades" class="p-4 max-h-[200px] overflow-auto text-xs"></div>
           </div>
         </section>
       </div>
 
-      <!-- Footer note -->
-      <div class="mt-6 text-xs text-slate-500">
-        This is a simulation: no authentication, no real orders. Prices come from public Nobitex endpoints and may be cached. Respect API rate limits.
+      <div class="mt-6 text-xs text-slate-500 text-center">
+        Simulation only • No real orders • Prices from public Nobitex API
       </div>
     </main>
   </div>
@@ -310,41 +374,38 @@
         <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
           <div>
             <div class="font-semibold">Settings</div>
-            <div class="text-xs text-slate-400">Target currency + starting balance + fee. Stored in LocalStorage.</div>
+            <div class="text-xs text-slate-400">Configure your trading simulation</div>
           </div>
           <button id="btnCloseSettings" class="rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">Close</button>
         </div>
         <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="text-xs text-slate-400">Target (quote currency)</label>
+            <label class="text-xs text-slate-400">Quote Currency</label>
             <select id="targetSelect" class="mt-1 w-full rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-sm">
               <option value="USDT">USDT</option>
               <option value="IRT">IRT</option>
             </select>
-            <div class="mt-2 text-xs text-slate-500">Only markets ending in your target are allowed for trading (e.g. BTCUSDT if target is USDT).</div>
           </div>
           <div>
-            <label class="text-xs text-slate-400">Starting money</label>
+            <label class="text-xs text-slate-400">Starting Balance</label>
             <input id="initialInput" type="number" step="any" min="0" class="mt-1 w-full rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-sm" placeholder="1000" />
-            <div class="mt-2 text-xs text-slate-500">Changing this will reset cash and P&L baseline.</div>
           </div>
           <div>
-            <label class="text-xs text-slate-400">Trading fee (bps)</label>
+            <label class="text-xs text-slate-400">Trading Fee (bps)</label>
             <input id="feeInput" type="number" step="1" min="0" max="200" class="mt-1 w-full rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-sm" placeholder="10" />
-            <div class="mt-2 text-xs text-slate-500">10 bps = 0.10%.</div>
+            <div class="mt-1 text-xs text-slate-500">10 bps = 0.10%</div>
           </div>
           <div>
-            <label class="text-xs text-slate-400">Default symbol</label>
+            <label class="text-xs text-slate-400">Default Symbol</label>
             <input id="defaultSymbolInput" class="mt-1 w-full rounded-xl bg-slate-900 border border-slate-800 px-3 py-2 text-sm" placeholder="BTCUSDT" />
-            <div class="mt-2 text-xs text-slate-500">Must end with your target. You can still type any symbol later.</div>
           </div>
 
           <div class="md:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/40 p-4">
-            <div class="text-sm font-semibold">Danger zone</div>
-            <div class="mt-1 text-xs text-slate-400">Changing target resets portfolio because holdings are denominated in that quote currency.</div>
+            <div class="text-sm font-semibold text-rose-200">Danger Zone</div>
+            <div class="mt-1 text-xs text-slate-400">Changing quote currency will reset your portfolio.</div>
             <div class="mt-3 flex flex-wrap gap-2">
               <button id="btnApplySettings" class="rounded-xl px-4 py-2 font-semibold bg-indigo-600 hover:bg-indigo-500">Apply</button>
-              <button id="btnHardReset" class="rounded-xl px-4 py-2 font-semibold bg-rose-600 hover:bg-rose-500">Reset everything</button>
+              <button id="btnHardReset" class="rounded-xl px-4 py-2 font-semibold bg-rose-600 hover:bg-rose-500">Reset Everything</button>
             </div>
           </div>
         </div>
@@ -359,8 +420,8 @@
       <div class="w-full max-w-2xl rounded-2xl border border-slate-800 bg-slate-950 ring-soft overflow-hidden">
         <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
           <div>
-            <div class="font-semibold">Import state</div>
-            <div class="text-xs text-slate-400">Paste previously exported JSON.</div>
+            <div class="font-semibold">Import State</div>
+            <div class="text-xs text-slate-400">Paste exported JSON</div>
           </div>
           <button id="btnCloseImport" class="rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">Close</button>
         </div>
@@ -380,14 +441,10 @@
   <div id="toasts" class="fixed bottom-4 right-4 z-[60] space-y-2"></div>
 
   <script>
-    // ----------------------------
-    // Helpers
-    // ----------------------------
-    const LS_KEY = 'tsim_state_v1';
+    const LS_KEY = 'spot_trading_v1';
 
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => [...document.querySelectorAll(sel)];
-
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
     function nowISO() {
@@ -432,7 +489,7 @@
       if (!Number.isFinite(n)) return '—';
       const isIRT = (quote === 'IRT');
       const maxFD = isIRT ? 0 : (Math.abs(n) >= 1000 ? 2 : 6);
-      return fmt(n, { maximumFractionDigits: maxFD, minimumFractionDigits: isIRT ? 0 : 0 });
+      return fmt(n, { maximumFractionDigits: maxFD, minimumFractionDigits: 0 });
     }
 
     function fmtAmount(n) {
@@ -444,7 +501,6 @@
     function parseSymbol(symbol) {
       const s = String(symbol || '').trim().toUpperCase();
       if (!s) return { raw: '', base: '', quote: '' };
-      // We support common quote suffixes.
       if (s.endsWith('USDT')) return { raw: s, base: s.slice(0, -4), quote: 'USDT' };
       if (s.endsWith('IRT')) return { raw: s, base: s.slice(0, -3), quote: 'IRT' };
       return { raw: s, base: s, quote: '' };
@@ -470,9 +526,7 @@
       t.textContent = label;
     }
 
-    // ----------------------------
-    // App state
-    // ----------------------------
+    // State
     const DEFAULTS = {
       version: 1,
       settings: {
@@ -485,18 +539,13 @@
         cash: 1000,
         realizedPnl: 0,
       },
-      holdings: {
-        // [asset]: { amount: number, cost: number }
-      },
+      holdings: {},
       history: [],
       ui: {
         symbol: 'BTCUSDT',
-        side: 'buy',
         resolution: '60'
       },
-      priceCache: {
-        // [symbol]: { mid: number, bestBid: number, bestAsk: number, ts: number }
-      }
+      priceCache: {}
     };
 
     let state = null;
@@ -506,7 +555,6 @@
         const raw = localStorage.getItem(LS_KEY);
         if (!raw) return structuredClone(DEFAULTS);
         const parsed = JSON.parse(raw);
-        // naive merge with defaults
         return {
           ...structuredClone(DEFAULTS),
           ...parsed,
@@ -541,15 +589,11 @@
       saveState();
     }
 
-    // ----------------------------
     // API
-    // ----------------------------
     const API = {
       orderbook: (symbol) => `https://apiv2.nobitex.ir/v3/orderbook/${encodeURIComponent(symbol)}`,
       trades: (symbol) => `https://apiv2.nobitex.ir/v2/trades/${encodeURIComponent(symbol)}`,
       ohlc: (symbol, resolution, from, to, page=1) => `https://apiv2.nobitex.ir/market/udf/history?symbol=${encodeURIComponent(symbol)}&resolution=${encodeURIComponent(resolution)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&page=${encodeURIComponent(page)}`,
-      // stats endpoint uses dstCurrency=rls for rial; we only show it best-effort and don't depend on it.
-      stats: (src, dst) => `https://apiv2.nobitex.ir/market/stats?srcCurrency=${encodeURIComponent(src)}&dstCurrency=${encodeURIComponent(dst)}`
     };
 
     async function fetchJSON(url, { timeoutMs = 10000 } = {}) {
@@ -568,9 +612,7 @@
       }
     }
 
-    // ----------------------------
     // Market data
-    // ----------------------------
     let live = {
       symbol: '',
       orderbook: null,
@@ -583,7 +625,6 @@
     };
 
     function normalizeOrderRow(row) {
-      // row: [price, amount] as strings
       const p = safeNum(row?.[0]);
       const a = safeNum(row?.[1]);
       return { price: p, amount: a };
@@ -609,7 +650,6 @@
       live.lastUpdate = data.lastUpdate || Date.now();
       live.lastTradePrice = safeNum(data.lastTradePrice);
 
-      // cache
       state.priceCache[symbol] = {
         mid: live.mid,
         bestBid: live.bestBid,
@@ -627,12 +667,10 @@
       return live.trades;
     }
 
-    // ----------------------------
-    // Symbol list (curated)
-    // ----------------------------
+    // Symbol chips
     const POPULAR = {
-      USDT: ['BTCUSDT','ETHUSDT','TONUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','NOTUSDT','SHIBUSDT','BNBUSDT','TRXUSDT','ADAUSDT','AVAXUSDT','LINKUSDT'],
-      IRT:  ['BTCIRT','ETHIRT','USDTIRT','TONIRT','XRPIRT','DOGEIRT','SHIBIRT','BNBIRT','TRXIRT','ADAIRT','AVAXIRT','LINKIRT']
+      USDT: ['BTCUSDT','ETHUSDT','TONUSDT','SOLUSDT','XRPUSDT','DOGEUSDT','BNBUSDT','TRXUSDT'],
+      IRT:  ['BTCIRT','ETHIRT','USDTIRT','TONIRT','XRPIRT','DOGEIRT']
     };
 
     function renderSymbolChips() {
@@ -642,16 +680,14 @@
       const chips = POPULAR[target] || [];
       for (const s of chips) {
         const b = document.createElement('button');
-        b.className = `text-xs px-2.5 py-1.5 rounded-full border border-slate-800 bg-slate-900 hover:bg-slate-800 ${state.ui.symbol === s ? 'border-indigo-600/70 text-indigo-200' : 'text-slate-200'}`;
+        b.className = `text-xs px-2 py-1 rounded-full border border-slate-800 bg-slate-900 hover:bg-slate-800 ${state.ui.symbol === s ? 'border-indigo-600/70 text-indigo-200' : 'text-slate-200'}`;
         b.textContent = s;
         b.addEventListener('click', () => setSymbol(s, { user: true }));
         wrap.appendChild(b);
       }
     }
 
-    // ----------------------------
-    // Trading simulation
-    // ----------------------------
+    // Trading
     function canTradeSymbol(sym) {
       const p = parseSymbol(sym);
       return p.quote && p.quote === state.settings.target;
@@ -659,12 +695,6 @@
 
     function getHolding(asset) {
       return state.holdings[asset] || { amount: 0, cost: 0 };
-    }
-
-    function getAvgCost(asset) {
-      const h = getHolding(asset);
-      if (!Number.isFinite(h.amount) || h.amount <= 0) return NaN;
-      return h.cost / h.amount;
     }
 
     function getCachedMid(symbol) {
@@ -699,22 +729,22 @@
       state.history = state.history.slice(0, 200);
     }
 
-    function executeTrade(side, symbol, amount) {
+    function executeTrade(side, symbol, amount, price) {
       const p = parseSymbol(symbol);
       if (!p.quote || p.quote !== state.settings.target) {
-        throw new Error(`Target mismatch: settings target=${state.settings.target} but market quote=${p.quote || 'unknown'}`);
+        throw new Error(`Quote currency mismatch`);
       }
       if (!Number.isFinite(amount) || amount <= 0) throw new Error('Invalid amount');
 
       const feeRate = feeRateFromBps(state.settings.feeBps);
 
       if (side === 'buy') {
-        const price = live.bestAsk;
-        if (!Number.isFinite(price)) throw new Error('No ask price');
-        const subtotal = amount * price;
+        const execPrice = Number.isFinite(price) && price > 0 ? price : live.bestAsk;
+        if (!Number.isFinite(execPrice)) throw new Error('No valid price');
+        const subtotal = amount * execPrice;
         const fee = subtotal * feeRate;
         const total = subtotal + fee;
-        if (state.account.cash + 1e-12 < total) throw new Error('Insufficient cash');
+        if (state.account.cash + 1e-12 < total) throw new Error('Insufficient balance');
 
         const prev = getHolding(p.base);
         const next = {
@@ -731,22 +761,22 @@
           asset: p.base,
           quote: p.quote,
           amount,
-          price,
+          price: execPrice,
           fee,
           total,
           realized: 0
         });
 
-        return { price, fee, total };
+        return { price: execPrice, fee, total };
       }
 
       if (side === 'sell') {
-        const price = live.bestBid;
-        if (!Number.isFinite(price)) throw new Error('No bid price');
+        const execPrice = Number.isFinite(price) && price > 0 ? price : live.bestBid;
+        if (!Number.isFinite(execPrice)) throw new Error('No valid price');
         const prev = getHolding(p.base);
         if (prev.amount + 1e-12 < amount) throw new Error('Insufficient asset balance');
 
-        const subtotal = amount * price;
+        const subtotal = amount * execPrice;
         const fee = subtotal * feeRate;
         const net = subtotal - fee;
 
@@ -773,42 +803,19 @@
           asset: p.base,
           quote: p.quote,
           amount,
-          price,
+          price: execPrice,
           fee,
           total: net,
           realized
         });
 
-        return { price, fee, total: net, realized };
+        return { price: execPrice, fee, total: net, realized };
       }
 
       throw new Error('Unknown side');
     }
 
-    // ----------------------------
     // UI rendering
-    // ----------------------------
-    function setSide(side) {
-      state.ui.side = side;
-      saveState();
-
-      const buyActive = side === 'buy';
-      $('#tabBuy').className = buyActive
-        ? 'px-4 py-2 text-sm font-semibold bg-emerald-600/30 text-emerald-200'
-        : 'px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800';
-      $('#tabSell').className = !buyActive
-        ? 'px-4 py-2 text-sm font-semibold bg-rose-600/30 text-rose-200'
-        : 'px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-800';
-
-      $('#btnExecute').textContent = buyActive ? 'Execute Buy' : 'Execute Sell';
-      $('#btnExecute').className = buyActive
-        ? 'mt-4 w-full rounded-xl px-4 py-3 font-semibold bg-emerald-600 hover:bg-emerald-500'
-        : 'mt-4 w-full rounded-xl px-4 py-3 font-semibold bg-rose-600 hover:bg-rose-500';
-
-      renderTradePreview();
-      renderQuickButtons();
-    }
-
     function setSymbol(symbol, { user=false } = {}) {
       const sym = String(symbol || '').trim().toUpperCase();
       if (!sym) return;
@@ -816,7 +823,7 @@
       saveState();
       $('#symbolInput').value = sym;
       renderSymbolChips();
-      if (user) toast(`Symbol set: ${sym}`, 'ok');
+      if (user) toast(`Symbol: ${sym}`, 'ok');
       scheduleMarketRefresh(true);
       scheduleChartRefresh(true);
       renderAll();
@@ -831,46 +838,45 @@
       $('#targetBadge').textContent = target;
       $('#equity').textContent = fmtMoney(equity, target);
       $('#cash').textContent = fmtMoney(state.account.cash, target) + ` ${target}`;
-      $('#initial').textContent = fmtMoney(state.account.initialCash, target) + ` ${target}`;
-      $('#fee').textContent = `${state.settings.feeBps} bps (${(feeRateFromBps(state.settings.feeBps)*100).toFixed(2)}%)`;
+      $('#fee').textContent = `${state.settings.feeBps} bps`;
 
-      const pnlText = `${fmtMoney(pnl, target)} (${Number.isFinite(pnlPct) ? pnlPct.toFixed(2) : '—'}%)`;
+      const pnlText = `${pnl >= 0 ? '+' : ''}${fmtMoney(pnl, target)} (${Number.isFinite(pnlPct) ? pnlPct.toFixed(2) : '—'}%)`;
       const pnlPill = $('#pnlPill');
       pnlPill.textContent = `P&L: ${pnlText}`;
       pnlPill.className = `text-xs rounded-full px-2 py-1 border ${pnl >= 0 ? 'border-emerald-900/60 bg-emerald-950/40 text-emerald-200' : 'border-rose-900/60 bg-rose-950/40 text-rose-200'}`;
 
       const realized = state.account.realizedPnl;
       const realizedPill = $('#realizedPill');
-      realizedPill.textContent = `Realized: ${fmtMoney(realized, target)}`;
+      realizedPill.textContent = `Realized: ${realized >= 0 ? '+' : ''}${fmtMoney(realized, target)}`;
       realizedPill.className = `text-xs rounded-full px-2 py-1 border ${realized >= 0 ? 'border-emerald-900/60 bg-emerald-950/40 text-emerald-200' : 'border-rose-900/60 bg-rose-950/40 text-rose-200'}`;
     }
 
     function renderMarketSummary() {
       const sym = state.ui.symbol;
       const p = parseSymbol(sym);
+      const target = state.settings.target;
+      
       $('#marketSymbol').textContent = sym;
-      $('#marketMeta').textContent = p.quote ? `${p.base} priced in ${p.quote}` : 'Unknown quote suffix (supported: USDT, IRT)';
-
       $('#tradeAsset').textContent = p.base || '—';
       $('#tradeQuote').textContent = p.quote || '—';
-      $('#assetLabel').textContent = p.base || 'asset';
-
-      // Quick BTC/ETH buttons match target
-      $('#btnQuickBTC').textContent = 'BTC';
-      $('#btnQuickETH').textContent = 'ETH';
-      $('#btnQuickBTC').onclick = () => setSymbol(`BTC${state.settings.target}`, { user: true });
-      $('#btnQuickETH').onclick = () => setSymbol(`ETH${state.settings.target}`, { user: true });
-
-      const available = (state.ui.side === 'buy')
-        ? `${fmtMoney(state.account.cash, state.settings.target)} ${state.settings.target}`
-        : `${fmtAmount(getHolding(p.base).amount)} ${p.base}`;
-      $('#available').textContent = available;
+      
+      // Update unit labels
+      $('#buyPriceUnit').textContent = p.quote || target;
+      $('#sellPriceUnit').textContent = p.quote || target;
+      $('#buyAmountUnit').textContent = p.base || '—';
+      $('#sellAmountUnit').textContent = p.base || '—';
+      $('#buyBtnAsset').textContent = p.base || '—';
+      $('#sellBtnAsset').textContent = p.base || '—';
+      
+      // Available balances
+      $('#buyAvailable').textContent = `${fmtMoney(state.account.cash, target)} ${target}`;
+      $('#sellAvailable').textContent = `${fmtAmount(getHolding(p.base).amount)} ${p.base}`;
 
       const targetOk = canTradeSymbol(sym);
       $('#tradeHint').textContent = targetOk
-        ? 'OK: this market quote matches your target. Trades will use best bid/ask from the orderbook.'
-        : `Target mismatch: your settings target is ${state.settings.target}. Choose a symbol ending in ${state.settings.target}.`;
-      $('#tradeHint').className = `mt-3 text-xs ${targetOk ? 'text-emerald-200' : 'text-amber-200'}`;
+        ? 'Leave price empty for market order • Click orderbook prices to fill'
+        : `⚠️ Symbol must end with ${target}`;
+      $('#tradeHint').className = `mt-4 text-xs text-center ${targetOk ? 'text-slate-400' : 'text-amber-200'}`;
     }
 
     function renderOrderbook() {
@@ -881,44 +887,54 @@
       const ask = live.bestAsk;
       const mid = live.mid;
       const spread = (Number.isFinite(bid) && Number.isFinite(ask)) ? (ask - bid) : NaN;
+      const lastPrice = Number.isFinite(live.lastTradePrice) ? live.lastTradePrice : mid;
 
       $('#bestBid').textContent = fmtMoney(bid, p.quote);
       $('#bestAsk').textContent = fmtMoney(ask, p.quote);
-      $('#midPrice').textContent = fmtMoney(mid, p.quote);
+      $('#lastPrice').textContent = fmtMoney(lastPrice, p.quote);
       $('#spread').textContent = Number.isFinite(spread) ? `${fmtMoney(spread, p.quote)} (${((spread / mid) * 100).toFixed(3)}%)` : '—';
 
-      const bids = $('#bids');
-      const asks = $('#asks');
+      const bidsEl = $('#bids');
+      const asksEl = $('#asks');
 
-      bids.innerHTML = '';
-      asks.innerHTML = '';
+      bidsEl.innerHTML = '';
+      asksEl.innerHTML = '';
 
-      const bidRows = (live.orderbook?.bids || []).slice(0, 10).map(normalizeOrderRow);
-      const askRows = (live.orderbook?.asks || []).slice(0, 10).map(normalizeOrderRow);
+      const bidRows = (live.orderbook?.bids || []).slice(0, 8).map(normalizeOrderRow);
+      const askRows = (live.orderbook?.asks || []).slice(0, 8).map(normalizeOrderRow);
 
       for (const r of bidRows) {
         const row = document.createElement('div');
-        row.className = 'flex items-center justify-between gap-2';
+        row.className = 'order-row flex items-center justify-between gap-2 px-1 py-0.5 rounded';
         row.innerHTML = `
-          <div class="text-emerald-200 tabular-nums">${fmtMoney(r.price, p.quote)}</div>
-          <div class="text-slate-300 tabular-nums">${fmtAmount(r.amount)}</div>
+          <div class="text-emerald-300 tabular-nums font-mono">${fmtMoney(r.price, p.quote)}</div>
+          <div class="text-slate-400 tabular-nums font-mono text-right">${fmtAmount(r.amount)}</div>
         `;
-        bids.appendChild(row);
+        row.addEventListener('click', () => {
+          $('#buyPriceInput').value = r.price;
+          $('#sellPriceInput').value = r.price;
+          renderTradePreview();
+        });
+        bidsEl.appendChild(row);
       }
+      
       for (const r of askRows) {
         const row = document.createElement('div');
-        row.className = 'flex items-center justify-between gap-2';
+        row.className = 'order-row flex items-center justify-between gap-2 px-1 py-0.5 rounded';
         row.innerHTML = `
-          <div class="text-rose-200 tabular-nums">${fmtMoney(r.price, p.quote)}</div>
-          <div class="text-slate-300 tabular-nums">${fmtAmount(r.amount)}</div>
+          <div class="text-rose-300 tabular-nums font-mono">${fmtMoney(r.price, p.quote)}</div>
+          <div class="text-slate-400 tabular-nums font-mono text-right">${fmtAmount(r.amount)}</div>
         `;
-        asks.appendChild(row);
+        row.addEventListener('click', () => {
+          $('#buyPriceInput').value = r.price;
+          $('#sellPriceInput').value = r.price;
+          renderTradePreview();
+        });
+        asksEl.appendChild(row);
       }
 
-      if (!bidRows.length && !askRows.length) {
-        bids.innerHTML = '<div class="text-slate-500">—</div>';
-        asks.innerHTML = '<div class="text-slate-500">—</div>';
-      }
+      if (!bidRows.length) bidsEl.innerHTML = '<div class="text-slate-500 text-center py-2">—</div>';
+      if (!askRows.length) asksEl.innerHTML = '<div class="text-slate-500 text-center py-2">—</div>';
 
       renderTradePreview();
     }
@@ -927,9 +943,9 @@
       const wrap = $('#recentTrades');
       const sym = state.ui.symbol;
       const p = parseSymbol(sym);
-      const rows = (live.trades || []).slice(0, 20);
+      const rows = (live.trades || []).slice(0, 15);
       if (!rows.length) {
-        wrap.innerHTML = '<div class="text-slate-500">—</div>';
+        wrap.innerHTML = '<div class="text-slate-500 text-center">—</div>';
         return;
       }
       wrap.innerHTML = '';
@@ -940,15 +956,15 @@
         const vol = safeNum(tr.volume);
         const type = tr.type;
         const el = document.createElement('div');
-        el.className = 'flex items-center justify-between gap-2 py-1 border-b border-slate-800/60 last:border-b-0';
+        el.className = 'flex items-center justify-between gap-2 py-1 border-b border-slate-800/40 last:border-b-0';
         el.innerHTML = `
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="text-[11px] text-slate-500">${time}</span>
-            <span class="text-[11px] px-1.5 py-0.5 rounded-full border ${type==='buy' ? 'border-emerald-900/60 bg-emerald-950/40 text-emerald-200' : 'border-rose-900/60 bg-rose-950/40 text-rose-200'}">${type}</span>
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] text-slate-500 font-mono">${time}</span>
+            <span class="w-8 text-center text-[10px] px-1 py-0.5 rounded ${type==='buy' ? 'bg-emerald-950/50 text-emerald-300' : 'bg-rose-950/50 text-rose-300'}">${type.toUpperCase()}</span>
           </div>
-          <div class="text-right">
-            <div class="tabular-nums">${fmtMoney(price, p.quote)}</div>
-            <div class="text-[11px] text-slate-400 tabular-nums">${fmtAmount(vol)} ${p.base}</div>
+          <div class="text-right font-mono">
+            <span class="${type==='buy' ? 'text-emerald-200' : 'text-rose-200'}">${fmtMoney(price, p.quote)}</span>
+            <span class="text-slate-500 ml-2">${fmtAmount(vol)}</span>
           </div>
         `;
         frag.appendChild(el);
@@ -956,94 +972,45 @@
       wrap.appendChild(frag);
     }
 
-    function renderQuickButtons() {
-      const sym = state.ui.symbol;
-      const p = parseSymbol(sym);
-      const wrap = $('#quickBtns');
-      wrap.innerHTML = '';
-      const side = state.ui.side;
-
-      if (!p.base) return;
-
-      const mkBtn = (label, onClick) => {
-        const b = document.createElement('button');
-        b.className = 'text-xs px-2.5 py-1.5 rounded-full border border-slate-800 bg-slate-900 hover:bg-slate-800';
-        b.textContent = label;
-        b.addEventListener('click', onClick);
-        return b;
-      };
-
-      if (side === 'buy') {
-        // % of cash -> convert to amount using bestAsk
-        const ask = live.bestAsk;
-        const cash = state.account.cash;
-        const feeRate = feeRateFromBps(state.settings.feeBps);
-        const makeAmtFromCashPct = (pct) => {
-          if (!Number.isFinite(ask) || ask <= 0) return NaN;
-          const budget = cash * pct;
-          // budget = amount*ask*(1+feeRate)
-          return budget / (ask * (1 + feeRate));
-        };
-        const options = [0.1, 0.25, 0.5, 1.0];
-        for (const pct of options) {
-          wrap.appendChild(mkBtn(`${Math.round(pct*100)}% cash`, () => {
-            const a = makeAmtFromCashPct(pct);
-            if (!Number.isFinite(a)) return;
-            $('#amountInput').value = a;
-            renderTradePreview();
-          }));
-        }
-      } else {
-        const h = getHolding(p.base);
-        const options = [0.25, 0.5, 1.0];
-        for (const pct of options) {
-          wrap.appendChild(mkBtn(`${Math.round(pct*100)}% holding`, () => {
-            const a = h.amount * pct;
-            $('#amountInput').value = a;
-            renderTradePreview();
-          }));
-        }
-      }
-
-      wrap.appendChild(mkBtn('Max', () => {
-        if (side === 'buy') {
-          const ask = live.bestAsk;
-          const cash = state.account.cash;
-          const feeRate = feeRateFromBps(state.settings.feeBps);
-          const a = (Number.isFinite(ask) && ask > 0) ? (cash / (ask*(1+feeRate))) : NaN;
-          if (Number.isFinite(a)) $('#amountInput').value = a;
-        } else {
-          $('#amountInput').value = getHolding(p.base).amount;
-        }
-        renderTradePreview();
-      }));
-    }
-
     function renderTradePreview() {
       const sym = state.ui.symbol;
       const p = parseSymbol(sym);
-      const side = state.ui.side;
-
-      $('#totalLabel').textContent = side === 'buy' ? 'Total cost' : 'Net proceeds';
-
-      const amount = safeNum($('#amountInput').value);
+      const target = state.settings.target;
       const feeRate = feeRateFromBps(state.settings.feeBps);
 
-      const price = side === 'buy' ? live.bestAsk : live.bestBid;
-      $('#execPrice').textContent = fmtMoney(price, p.quote);
-
-      if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(price)) {
-        $('#feePreview').textContent = '—';
-        $('#totalPreview').textContent = '—';
-        return;
+      // Buy preview
+      const buyPrice = safeNum($('#buyPriceInput').value) || live.bestAsk;
+      const buyAmount = safeNum($('#buyAmountInput').value);
+      
+      if (Number.isFinite(buyPrice) && Number.isFinite(buyAmount) && buyAmount > 0) {
+        const subtotal = buyAmount * buyPrice;
+        const fee = subtotal * feeRate;
+        const total = subtotal + fee;
+        $('#buySubtotal').textContent = `${fmtMoney(subtotal, target)} ${target}`;
+        $('#buyFee').textContent = `${fmtMoney(fee, target)} ${target}`;
+        $('#buyTotal').textContent = `${fmtMoney(total, target)} ${target}`;
+      } else {
+        $('#buySubtotal').textContent = '—';
+        $('#buyFee').textContent = '—';
+        $('#buyTotal').textContent = '—';
       }
 
-      const subtotal = amount * price;
-      const fee = subtotal * feeRate;
-      const total = side === 'buy' ? subtotal + fee : subtotal - fee;
-
-      $('#feePreview').textContent = `${fmtMoney(fee, p.quote)} ${p.quote}`;
-      $('#totalPreview').textContent = `${fmtMoney(total, p.quote)} ${p.quote}`;
+      // Sell preview
+      const sellPrice = safeNum($('#sellPriceInput').value) || live.bestBid;
+      const sellAmount = safeNum($('#sellAmountInput').value);
+      
+      if (Number.isFinite(sellPrice) && Number.isFinite(sellAmount) && sellAmount > 0) {
+        const subtotal = sellAmount * sellPrice;
+        const fee = subtotal * feeRate;
+        const total = subtotal - fee;
+        $('#sellSubtotal').textContent = `${fmtMoney(subtotal, target)} ${target}`;
+        $('#sellFee').textContent = `${fmtMoney(fee, target)} ${target}`;
+        $('#sellTotal').textContent = `${fmtMoney(total, target)} ${target}`;
+      } else {
+        $('#sellSubtotal').textContent = '—';
+        $('#sellFee').textContent = '—';
+        $('#sellTotal').textContent = '—';
+      }
     }
 
     function renderPortfolio() {
@@ -1058,7 +1025,6 @@
       }
       $('#portfolioEmpty').classList.add('hidden');
 
-      // sort by value desc
       const sorted = entries
         .map(([asset, h]) => {
           const sym = `${asset}${target}`;
@@ -1072,26 +1038,20 @@
       for (const row of sorted) {
         const avg = row.amount > 0 ? (row.cost / row.amount) : NaN;
         const tr = document.createElement('tr');
-        tr.className = 'border-b border-slate-800/60 last:border-b-0';
+        tr.className = 'border-b border-slate-800/60 last:border-b-0 hover:bg-slate-900/30 cursor-pointer';
         const unrCls = !Number.isFinite(row.unr) ? 'text-slate-400' : (row.unr >= 0 ? 'text-emerald-200' : 'text-rose-200');
         tr.innerHTML = `
           <td class="py-2">
             <div class="font-semibold">${row.asset}</div>
-            <button class="text-xs text-indigo-200 hover:text-indigo-100" data-action="setsymbol" data-symbol="${row.sym}">Open ${row.sym}</button>
           </td>
-          <td class="py-2 text-right tabular-nums">${fmtAmount(row.amount)}</td>
-          <td class="py-2 text-right tabular-nums">${fmtMoney(avg, target)}</td>
-          <td class="py-2 text-right tabular-nums">${fmtMoney(row.mid, target)}</td>
-          <td class="py-2 text-right tabular-nums">${fmtMoney(row.value, target)}</td>
-          <td class="py-2 text-right tabular-nums ${unrCls}">${fmtMoney(row.unr, target)}</td>
+          <td class="py-2 text-right tabular-nums font-mono">${fmtAmount(row.amount)}</td>
+          <td class="py-2 text-right tabular-nums font-mono text-slate-400">${fmtMoney(avg, target)}</td>
+          <td class="py-2 text-right tabular-nums font-mono">${fmtMoney(row.value, target)}</td>
+          <td class="py-2 text-right tabular-nums font-mono ${unrCls}">${row.unr >= 0 ? '+' : ''}${fmtMoney(row.unr, target)}</td>
         `;
+        tr.addEventListener('click', () => setSymbol(row.sym, { user: true }));
         tbody.appendChild(tr);
       }
-
-      // delegate open symbol
-      tbody.querySelectorAll('[data-action="setsymbol"]').forEach(btn => {
-        btn.addEventListener('click', () => setSymbol(btn.getAttribute('data-symbol'), { user: true }));
-      });
     }
 
     function renderHistory() {
@@ -1099,38 +1059,27 @@
       const target = state.settings.target;
       const rows = state.history || [];
       if (!rows.length) {
-        wrap.innerHTML = '<div class="text-sm text-slate-400">No simulated trades yet.</div>';
+        wrap.innerHTML = '<div class="text-sm text-slate-400 text-center py-4">No trades yet</div>';
         return;
       }
       wrap.innerHTML = '';
 
-      for (const h of rows.slice(0, 100)) {
+      for (const h of rows.slice(0, 50)) {
         const t = new Date(h.ts).toLocaleString();
         const sideCls = h.side === 'buy'
-          ? 'border-emerald-900/60 bg-emerald-950/40 text-emerald-200'
-          : 'border-rose-900/60 bg-rose-950/40 text-rose-200';
+          ? 'bg-emerald-950/50 text-emerald-300'
+          : 'bg-rose-950/50 text-rose-300';
 
         const div = document.createElement('div');
-        div.className = 'rounded-2xl border border-slate-800 bg-slate-900/40 p-3 mb-3 last:mb-0';
+        div.className = 'flex items-center justify-between gap-2 py-2 border-b border-slate-800/40 last:border-b-0 text-xs';
         div.innerHTML = `
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-xs px-2 py-1 rounded-full border ${sideCls}">${h.side.toUpperCase()}</span>
-                <span class="font-semibold">${h.symbol}</span>
-                <span class="text-xs text-slate-400">${t}</span>
-              </div>
-              <div class="mt-1 text-sm text-slate-200 tabular-nums">
-                Amount: <span class="font-semibold">${fmtAmount(h.amount)} ${h.asset}</span> at <span class="font-semibold">${fmtMoney(h.price, target)}</span>
-              </div>
-              <div class="mt-1 text-xs text-slate-400 tabular-nums">
-                Fee: ${fmtMoney(h.fee, target)} ${target} • ${h.side === 'buy' ? 'Cost' : 'Net'}: ${fmtMoney(h.total, target)} ${target}
-              </div>
-            </div>
-            <div class="text-right">
-              <div class="text-xs text-slate-400">Realized</div>
-              <div class="tabular-nums ${Number.isFinite(h.realized) ? (h.realized >= 0 ? 'text-emerald-200' : 'text-rose-200') : 'text-slate-400'}">${fmtMoney(h.realized, target)}</div>
-            </div>
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${sideCls}">${h.side.toUpperCase()}</span>
+            <span class="font-semibold">${h.asset}</span>
+            <span class="text-slate-500">${t}</span>
+          </div>
+          <div class="text-right font-mono">
+            <span>${fmtAmount(h.amount)} @ ${fmtMoney(h.price, target)}</span>
           </div>
         `;
         wrap.appendChild(div);
@@ -1147,14 +1096,7 @@
       renderHistory();
     }
 
-    // ----------------------------
-    // Charting (simple canvas line chart of closes)
-    // ----------------------------
-    function clearCanvas(c) {
-      const ctx = c.getContext('2d');
-      ctx.clearRect(0, 0, c.width, c.height);
-    }
-
+    // Chart
     function resizeCanvasToCSS(c) {
       const rect = c.getBoundingClientRect();
       const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
@@ -1172,7 +1114,6 @@
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, w, h);
 
-      // background
       ctx.fillStyle = 'rgba(2, 6, 23, 0.35)';
       ctx.fillRect(0, 0, w, h);
 
@@ -1194,7 +1135,6 @@
       const xToPx = (i) => pad + (i/(ys.length-1)) * innerW;
       const yToPx = (y) => pad + innerH - ((y - ymin)/yr) * innerH;
 
-      // grid
       ctx.strokeStyle = 'rgba(148,163,184,0.12)';
       ctx.lineWidth = 1;
       for (let i=0;i<5;i++) {
@@ -1205,7 +1145,6 @@
         ctx.stroke();
       }
 
-      // line
       const last = ys[ys.length-1];
       const first = ys[0];
       const up = last >= first;
@@ -1223,47 +1162,19 @@
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // fill
       ctx.lineTo(pad+innerW, pad+innerH);
       ctx.lineTo(pad, pad+innerH);
       ctx.closePath();
       ctx.fillStyle = fill;
       ctx.fill();
 
-      // labels
       ctx.fillStyle = 'rgba(226,232,240,0.9)';
-      ctx.font = `${Math.max(12, Math.floor(h/20))}px ui-sans-serif`;
-      ctx.fillText(title, 14, 22);
-
-      ctx.fillStyle = 'rgba(148,163,184,0.9)';
-      ctx.font = `${Math.max(10, Math.floor(h/26))}px ui-sans-serif`;
-      const yTop = fmtMoney(ymax, quote);
-      const yBot = fmtMoney(ymin, quote);
-      ctx.fillText(yTop, 14, pad+10);
-      ctx.fillText(yBot, 14, pad+innerH);
-
-      // last value
-      const xLast = xToPx(ys.length-1);
-      const yLast = yToPx(last);
-      ctx.fillStyle = stroke;
-      ctx.beginPath();
-      ctx.arc(xLast, yLast, 3.5, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(226,232,240,0.9)';
-      ctx.fillText(`${fmtMoney(last, quote)}`, Math.min(w - 150, xLast + 8), yLast - 8);
+      ctx.font = `${Math.max(11, Math.floor(h/22))}px ui-sans-serif`;
+      ctx.fillText(title, 14, 18);
     }
 
     async function fetchOHLC(symbol, resolution) {
       const to = Math.floor(Date.now()/1000);
-      // window based on resolution: 5m => 2 days, 15m => 5 days, 1h => 14d, 4h => 60d, 1D => 365d
-      const sec = (res) => {
-        if (res === 'D') return 86400;
-        if (res === '2D') return 2*86400;
-        if (res === '3D') return 3*86400;
-        return Number(res) * 60;
-      };
-      const s = sec(resolution);
       const span = (resolution === '5') ? 2*86400
         : (resolution === '15') ? 5*86400
         : (resolution === '60') ? 14*86400
@@ -1283,22 +1194,20 @@
       const c = $('#chart');
       const closes = (data?.c || []).map(Number).filter(Number.isFinite);
       const times = (data?.t || []).map(Number).filter(Number.isFinite);
-      const title = `${sym} • close • ${state.ui.resolution}`;
+      const title = `${sym} • ${state.ui.resolution}`;
       drawLineChart(c, times, closes, { quote: p.quote || state.settings.target, title });
 
       if (closes.length) {
         const first = closes[0];
         const last = closes[closes.length-1];
         const chg = first ? ((last-first)/first)*100 : NaN;
-        $('#chartMeta').textContent = `Candles: ${closes.length} • From: ${new Date(times[0]*1000).toLocaleString()} • To: ${new Date(times[times.length-1]*1000).toLocaleString()} • Change: ${Number.isFinite(chg) ? chg.toFixed(2) : '—'}%`;
+        $('#chartMeta').textContent = `${closes.length} candles • ${Number.isFinite(chg) ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '—'}`;
       } else {
         $('#chartMeta').textContent = '—';
       }
     }
 
-    // ----------------------------
     // Refresh scheduling
-    // ----------------------------
     let orderbookTimer = null;
     let tradesTimer = null;
     let chartInFlight = false;
@@ -1316,18 +1225,16 @@
         renderPortfolio();
         renderAccountSummary();
       } catch (e) {
-        setConn('warn', 'Market');
-        toast(`Market refresh failed: ${e.message}`, 'warn');
+        setConn('warn', 'Error');
+        toast(`Refresh failed: ${e.message}`, 'warn');
       } finally {
         marketInFlight = false;
       }
 
-      // trades can fail independently
       try {
         await refreshTrades(sym);
         renderRecentTrades();
       } catch (e) {
-        // keep quiet; rate limited sometimes
         setConn('warn', 'Trades');
       }
     }
@@ -1338,7 +1245,6 @@
 
       if (immediate) refreshMarketOnce();
 
-      // Respect rate limits: orderbook ~ every 6s, trades every 18s
       orderbookTimer = setInterval(() => {
         if (!marketInFlight) refreshOrderbook(state.ui.symbol)
           .then(() => {
@@ -1361,9 +1267,8 @@
       const target = state.settings.target;
       const assets = Object.keys(state.holdings);
       if (!assets.length) return;
-      toast('Refreshing portfolio prices…', 'info', 1400);
+      toast('Refreshing prices…', 'info', 1400);
 
-      // Sequential to be polite
       for (const asset of assets) {
         const sym = `${asset}${target}`;
         try {
@@ -1374,7 +1279,7 @@
 
       renderPortfolio();
       renderAccountSummary();
-      toast('Portfolio prices updated.', 'ok');
+      toast('Prices updated', 'ok');
     }
 
     async function scheduleChartRefresh(immediate=false) {
@@ -1387,21 +1292,19 @@
         renderChart(data);
       } catch (e) {
         const c = $('#chart');
-        clearCanvas(c);
         const { w, h } = resizeCanvasToCSS(c);
         const ctx = c.getContext('2d');
+        ctx.clearRect(0, 0, w, h);
         ctx.fillStyle = 'rgba(148,163,184,0.8)';
         ctx.font = '12px ui-sans-serif';
-        ctx.fillText(`Chart unavailable: ${e.message}`, 14, 24);
+        ctx.fillText(`Chart unavailable`, 14, 24);
         $('#chartMeta').textContent = '—';
       } finally {
         chartInFlight = false;
       }
     }
 
-    // ----------------------------
     // Settings modal
-    // ----------------------------
     function openSettings() {
       $('#settingsModal').classList.remove('hidden');
       $('#targetSelect').value = state.settings.target;
@@ -1421,7 +1324,7 @@
       const nextDefault = String($('#defaultSymbolInput').value || '').trim().toUpperCase();
 
       if (!Number.isFinite(nextInitial) || nextInitial < 0) {
-        toast('Invalid starting money.', 'err');
+        toast('Invalid balance', 'err');
         return;
       }
 
@@ -1439,15 +1342,13 @@
         state.holdings = {};
         state.history = [];
         state.priceCache = {};
-        // pick a target-matching symbol
         const candidate = parseSymbol(state.settings.defaultSymbol).quote === nextTarget
           ? state.settings.defaultSymbol
           : `BTC${nextTarget}`;
         state.ui.symbol = candidate;
-        toast('Target changed: portfolio reset.', 'warn');
+        toast('Currency changed, portfolio reset', 'warn');
       } else {
-        // keep holdings but recalculations depend on quote; still safe.
-        toast('Settings applied.', 'ok');
+        toast('Settings saved', 'ok');
       }
 
       saveState();
@@ -1459,15 +1360,13 @@
       scheduleChartRefresh(true);
     }
 
-    // ----------------------------
     // Export / Import
-    // ----------------------------
     function exportState() {
       const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `tsim_export_${Date.now()}.json`;
+      a.download = `spot_export_${Date.now()}.json`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1488,9 +1387,8 @@
       try {
         const txt = $('#importText').value;
         const parsed = JSON.parse(txt);
-        if (!parsed || typeof parsed !== 'object') throw new Error('Invalid JSON object');
-        // Basic validation
-        if (!parsed.settings || !parsed.account) throw new Error('Missing required fields');
+        if (!parsed || typeof parsed !== 'object') throw new Error('Invalid JSON');
+        if (!parsed.settings || !parsed.account) throw new Error('Missing fields');
         state = {
           ...structuredClone(DEFAULTS),
           ...parsed,
@@ -1506,15 +1404,13 @@
         renderAll();
         scheduleMarketRefresh(true);
         scheduleChartRefresh(true);
-        toast('Import successful.', 'ok');
+        toast('Imported successfully', 'ok');
       } catch (e) {
-        $('#importHint').textContent = `Import failed: ${e.message}`;
+        $('#importHint').textContent = `Error: ${e.message}`;
       }
     }
 
-    // ----------------------------
     // Events
-    // ----------------------------
     function wireEvents() {
       $('#btnSettings').addEventListener('click', openSettings);
       $('#btnCloseSettings').addEventListener('click', closeSettings);
@@ -1523,21 +1419,21 @@
       });
       $('#btnApplySettings').addEventListener('click', applySettingsFromModal);
       $('#btnHardReset').addEventListener('click', () => {
-        if (!confirm('Reset EVERYTHING (settings + portfolio + history)?')) return;
+        if (!confirm('Reset everything?')) return;
         hardResetAll();
         renderAll();
         scheduleMarketRefresh(true);
         scheduleChartRefresh(true);
-        toast('Everything reset.', 'ok');
+        toast('Reset complete', 'ok');
         closeSettings();
       });
 
       $('#btnReset').addEventListener('click', () => {
-        if (!confirm('Reset portfolio, history, and cash back to initial?')) return;
+        if (!confirm('Reset portfolio?')) return;
         resetPortfolio();
         saveState();
         renderAll();
-        toast('Portfolio reset.', 'ok');
+        toast('Portfolio reset', 'ok');
       });
 
       $('#btnRefreshMarket').addEventListener('click', () => refreshMarketOnce());
@@ -1546,38 +1442,93 @@
         if (e.key === 'Enter') setSymbol($('#symbolInput').value, { user: true });
       });
 
-      $('#tabBuy').addEventListener('click', () => setSide('buy'));
-      $('#tabSell').addEventListener('click', () => setSide('sell'));
+      // Buy panel events
+      $('#buyPriceInput').addEventListener('input', renderTradePreview);
+      $('#buyAmountInput').addEventListener('input', renderTradePreview);
+      $('#btnBuyMarket').addEventListener('click', () => {
+        $('#buyPriceInput').value = '';
+        renderTradePreview();
+      });
+      
+      $('#buyQuickBtns').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-pct]');
+        if (!btn) return;
+        const pct = parseFloat(btn.dataset.pct);
+        const price = safeNum($('#buyPriceInput').value) || live.bestAsk;
+        const feeRate = feeRateFromBps(state.settings.feeBps);
+        const cash = state.account.cash;
+        if (Number.isFinite(price) && price > 0) {
+          const amount = (cash * pct) / (price * (1 + feeRate));
+          $('#buyAmountInput').value = amount;
+          renderTradePreview();
+        }
+      });
 
-      $('#amountInput').addEventListener('input', renderTradePreview);
-
-      $('#btnExecute').addEventListener('click', async () => {
+      $('#btnBuy').addEventListener('click', async () => {
         const sym = state.ui.symbol;
         if (!canTradeSymbol(sym)) {
-          toast(`Choose a symbol ending in ${state.settings.target}.`, 'warn');
+          toast(`Symbol must end with ${state.settings.target}`, 'warn');
           return;
         }
-        const amount = safeNum($('#amountInput').value);
+        const amount = safeNum($('#buyAmountInput').value);
+        const price = safeNum($('#buyPriceInput').value);
         try {
-          // Ensure we have fresh orderbook right before executing
           await refreshOrderbook(sym);
-          const res = executeTrade(state.ui.side, sym, amount);
+          const res = executeTrade('buy', sym, amount, price);
           saveState();
+          $('#buyAmountInput').value = '';
           renderAll();
-          // Refresh price cache for this symbol is already updated by refreshOrderbook.
-          if (state.ui.side === 'buy') toast(`Bought ${fmtAmount(amount)} ${parseSymbol(sym).base} at ${fmtMoney(res.price, state.settings.target)}`, 'ok');
-          else toast(`Sold ${fmtAmount(amount)} ${parseSymbol(sym).base} at ${fmtMoney(res.price, state.settings.target)}`, 'ok');
+          toast(`Bought ${fmtAmount(amount)} ${parseSymbol(sym).base} @ ${fmtMoney(res.price, state.settings.target)}`, 'ok');
+        } catch (e) {
+          toast(e.message, 'err');
+        }
+      });
+
+      // Sell panel events
+      $('#sellPriceInput').addEventListener('input', renderTradePreview);
+      $('#sellAmountInput').addEventListener('input', renderTradePreview);
+      $('#btnSellMarket').addEventListener('click', () => {
+        $('#sellPriceInput').value = '';
+        renderTradePreview();
+      });
+      
+      $('#sellQuickBtns').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-pct]');
+        if (!btn) return;
+        const pct = parseFloat(btn.dataset.pct);
+        const sym = state.ui.symbol;
+        const p = parseSymbol(sym);
+        const holding = getHolding(p.base).amount;
+        $('#sellAmountInput').value = holding * pct;
+        renderTradePreview();
+      });
+
+      $('#btnSell').addEventListener('click', async () => {
+        const sym = state.ui.symbol;
+        if (!canTradeSymbol(sym)) {
+          toast(`Symbol must end with ${state.settings.target}`, 'warn');
+          return;
+        }
+        const amount = safeNum($('#sellAmountInput').value);
+        const price = safeNum($('#sellPriceInput').value);
+        try {
+          await refreshOrderbook(sym);
+          const res = executeTrade('sell', sym, amount, price);
+          saveState();
+          $('#sellAmountInput').value = '';
+          renderAll();
+          toast(`Sold ${fmtAmount(amount)} ${parseSymbol(sym).base} @ ${fmtMoney(res.price, state.settings.target)}`, 'ok');
         } catch (e) {
           toast(e.message, 'err');
         }
       });
 
       $('#btnClearHistory').addEventListener('click', () => {
-        if (!confirm('Clear simulated trade history?')) return;
+        if (!confirm('Clear trade history?')) return;
         state.history = [];
         saveState();
         renderHistory();
-        toast('History cleared.', 'ok');
+        toast('History cleared', 'ok');
       });
 
       $('#btnRefreshPrices').addEventListener('click', refreshPortfolioPrices);
@@ -1589,12 +1540,8 @@
       });
       $('#btnReloadChart').addEventListener('click', () => scheduleChartRefresh(true));
 
-      window.addEventListener('resize', () => {
-        // redraw chart if last rendered data is cached? we don't cache; just re-fetch lightly.
-        scheduleChartRefresh(true);
-      });
+      window.addEventListener('resize', () => scheduleChartRefresh(true));
 
-      // Export / import
       $('#btnExport').addEventListener('click', exportState);
       $('#btnImport').addEventListener('click', openImport);
       $('#btnCloseImport').addEventListener('click', closeImport);
@@ -1603,19 +1550,12 @@
       $('#importModal').addEventListener('click', (e) => {
         if (e.target === $('#importModal').children[0]) closeImport();
       });
-
-      // Quick start from defaults
-      $('#btnQuickBTC').addEventListener('click', () => setSymbol(`BTC${state.settings.target}`, { user: true }));
-      $('#btnQuickETH').addEventListener('click', () => setSymbol(`ETH${state.settings.target}`, { user: true }));
     }
 
-    // ----------------------------
     // Boot
-    // ----------------------------
     async function boot() {
       state = loadState();
 
-      // Ensure symbol matches target by default
       const p = parseSymbol(state.ui.symbol);
       if (!p.quote || p.quote !== state.settings.target) {
         state.ui.symbol = state.settings.defaultSymbol || `BTC${state.settings.target}`;
@@ -1625,19 +1565,16 @@
       $('#resolution').value = state.ui.resolution || '60';
 
       wireEvents();
-      setSide(state.ui.side || 'buy');
       renderAll();
 
-      // prompt settings if first run
       if (!localStorage.getItem(LS_KEY)) {
         openSettings();
-        toast('Set your target currency and starting balance.', 'info', 3200);
+        toast('Configure your settings to start', 'info', 3200);
       }
 
       scheduleMarketRefresh(true);
       scheduleChartRefresh(true);
 
-      // Try a background refresh of portfolio prices (if any) after first paint
       setTimeout(() => {
         if (Object.keys(state.holdings).length) refreshPortfolioPrices();
       }, 1200);
