@@ -29,6 +29,12 @@
     
     .order-row:hover { background: rgba(148,163,184,.08); }
     .order-row { cursor: pointer; transition: background .15s; }
+    
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
   </style>
 </head>
 <body class="h-full bg-slate-950 text-slate-100">
@@ -51,6 +57,10 @@
             <span id="connText" class="text-xs text-slate-300">Idle</span>
             <span class="text-xs text-slate-600">•</span>
             <span id="lastUpdate" class="text-xs text-slate-400">—</span>
+          </div>
+          <div id="pendingBadge" class="hidden items-center gap-1 px-2 py-1 rounded-lg bg-amber-950/50 border border-amber-900/50">
+            <span class="h-2 w-2 rounded-full bg-amber-500 pulse-dot"></span>
+            <span class="text-xs text-amber-200"><span id="pendingCount">0</span> pending</span>
           </div>
           <button id="btnExport" class="hidden sm:inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm bg-slate-900 hover:bg-slate-800 border border-slate-800">
             Export
@@ -119,11 +129,11 @@
             <!-- Price ticker -->
             <div class="mt-4 grid grid-cols-2 gap-3">
               <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
-                <div class="text-xs text-slate-400">Best Ask</div>
+                <div class="text-xs text-slate-400">Best Ask (sell orders)</div>
                 <div id="bestAsk" class="mt-1 font-semibold text-rose-200">—</div>
               </div>
               <div class="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
-                <div class="text-xs text-slate-400">Best Bid</div>
+                <div class="text-xs text-slate-400">Best Bid (buy orders)</div>
                 <div id="bestBid" class="mt-1 font-semibold text-emerald-200">—</div>
               </div>
             </div>
@@ -138,14 +148,14 @@
             <div class="grid grid-cols-2 divide-x divide-slate-800">
               <div class="p-3">
                 <div class="text-xs text-slate-400 mb-2 flex justify-between">
-                  <span>Price (Bid)</span>
+                  <span>Bid Price</span>
                   <span>Amount</span>
                 </div>
                 <div id="bids" class="space-y-0.5 text-xs"></div>
               </div>
               <div class="p-3">
                 <div class="text-xs text-slate-400 mb-2 flex justify-between">
-                  <span>Price (Ask)</span>
+                  <span>Ask Price</span>
                   <span>Amount</span>
                 </div>
                 <div id="asks" class="space-y-0.5 text-xs"></div>
@@ -188,13 +198,14 @@
                 <div class="space-y-4">
                   <div>
                     <div class="flex items-center justify-between mb-1">
-                      <label class="text-xs text-slate-400">Price</label>
-                      <button id="btnBuyMarket" class="text-xs text-emerald-400 hover:text-emerald-300">Market</button>
+                      <label class="text-xs text-slate-400">Limit Price</label>
+                      <button id="btnBuyMarket" class="text-xs text-emerald-400 hover:text-emerald-300">Use Market</button>
                     </div>
                     <div class="relative">
-                      <input id="buyPriceInput" type="number" step="any" min="0" class="w-full rounded-xl bg-slate-950 border border-emerald-900/40 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 pr-16" placeholder="Market price" />
+                      <input id="buyPriceInput" type="number" step="any" min="0" class="w-full rounded-xl bg-slate-950 border border-emerald-900/40 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 pr-16" placeholder="Enter limit price" />
                       <span id="buyPriceUnit" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">USDT</span>
                     </div>
+                    <div id="buyPriceHint" class="mt-1 text-xs text-slate-500">Best ask: —</div>
                   </div>
                   
                   <div>
@@ -221,12 +232,14 @@
                       <span id="buyFee" class="text-slate-200">—</span>
                     </div>
                     <div class="flex justify-between text-sm font-semibold border-t border-slate-800 pt-2">
-                      <span class="text-slate-300">Total</span>
+                      <span class="text-slate-300">Total Cost</span>
                       <span id="buyTotal" class="text-emerald-200">—</span>
                     </div>
                   </div>
                   
-                  <button id="btnBuy" class="w-full rounded-xl px-4 py-3.5 font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors">
+                  <div id="buyStatus" class="text-xs text-center py-2 rounded-lg hidden"></div>
+                  
+                  <button id="btnBuy" class="w-full rounded-xl px-4 py-3.5 font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                     Buy <span id="buyBtnAsset">—</span>
                   </button>
                 </div>
@@ -244,13 +257,14 @@
                 <div class="space-y-4">
                   <div>
                     <div class="flex items-center justify-between mb-1">
-                      <label class="text-xs text-slate-400">Price</label>
-                      <button id="btnSellMarket" class="text-xs text-rose-400 hover:text-rose-300">Market</button>
+                      <label class="text-xs text-slate-400">Limit Price</label>
+                      <button id="btnSellMarket" class="text-xs text-rose-400 hover:text-rose-300">Use Market</button>
                     </div>
                     <div class="relative">
-                      <input id="sellPriceInput" type="number" step="any" min="0" class="w-full rounded-xl bg-slate-950 border border-rose-900/40 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-600 pr-16" placeholder="Market price" />
+                      <input id="sellPriceInput" type="number" step="any" min="0" class="w-full rounded-xl bg-slate-950 border border-rose-900/40 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose-600 pr-16" placeholder="Enter limit price" />
                       <span id="sellPriceUnit" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">USDT</span>
                     </div>
+                    <div id="sellPriceHint" class="mt-1 text-xs text-slate-500">Best bid: —</div>
                   </div>
                   
                   <div>
@@ -277,19 +291,35 @@
                       <span id="sellFee" class="text-slate-200">—</span>
                     </div>
                     <div class="flex justify-between text-sm font-semibold border-t border-slate-800 pt-2">
-                      <span class="text-slate-300">Total</span>
+                      <span class="text-slate-300">You Receive</span>
                       <span id="sellTotal" class="text-rose-200">—</span>
                     </div>
                   </div>
                   
-                  <button id="btnSell" class="w-full rounded-xl px-4 py-3.5 font-bold text-white bg-rose-600 hover:bg-rose-500 transition-colors">
+                  <div id="sellStatus" class="text-xs text-center py-2 rounded-lg hidden"></div>
+                  
+                  <button id="btnSell" class="w-full rounded-xl px-4 py-3.5 font-bold text-white bg-rose-600 hover:bg-rose-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                     Sell <span id="sellBtnAsset">—</span>
                   </button>
                 </div>
               </div>
             </div>
             
-            <div id="tradeHint" class="mt-4 text-xs text-slate-400 text-center">Leave price empty for market order • Click orderbook prices to fill</div>
+            <div id="tradeHint" class="mt-4 text-xs text-slate-400 text-center">Limit orders wait for matching liquidity • Checked every 5 seconds</div>
+          </div>
+
+          <!-- Open Orders -->
+          <div class="glass ring-soft rounded-2xl overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="text-sm font-semibold">Open Orders</div>
+                <span id="openOrdersCount" class="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">0</span>
+              </div>
+              <button id="btnCancelAllOrders" class="rounded-xl px-2 py-1.5 text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 text-rose-200">Cancel All</button>
+            </div>
+            <div id="openOrdersList" class="p-4 max-h-[200px] overflow-auto">
+              <div id="noOpenOrders" class="text-sm text-slate-400 text-center py-4">No open orders</div>
+            </div>
           </div>
 
           <!-- Portfolio -->
@@ -301,7 +331,7 @@
               </div>
               <div class="text-xs text-slate-400">LocalStorage</div>
             </div>
-            <div class="p-4 overflow-auto max-h-[300px]">
+            <div class="p-4 overflow-auto max-h-[250px]">
               <table class="w-full text-sm">
                 <thead class="text-xs text-slate-400">
                   <tr class="border-b border-slate-800">
@@ -335,7 +365,7 @@
                 </div>
               </div>
               <div class="p-4">
-                <canvas id="chart" class="w-full h-[200px] rounded-xl border border-slate-800 bg-slate-900/40"></canvas>
+                <canvas id="chart" class="w-full h-[180px] rounded-xl border border-slate-800 bg-slate-900/40"></canvas>
                 <div class="mt-2 text-xs text-slate-400" id="chartMeta">—</div>
               </div>
             </div>
@@ -345,7 +375,7 @@
                 <div class="text-sm font-semibold">Trade History</div>
                 <button id="btnClearHistory" class="rounded-xl px-2 py-1.5 text-xs bg-slate-900 hover:bg-slate-800 border border-slate-800 text-rose-200">Clear</button>
               </div>
-              <div id="tradeHistory" class="p-4 max-h-[260px] overflow-auto"></div>
+              <div id="tradeHistory" class="p-4 max-h-[220px] overflow-auto"></div>
             </div>
           </div>
 
@@ -355,7 +385,7 @@
               <div class="text-sm font-semibold">Recent Market Trades</div>
               <div class="text-xs text-slate-400">Live feed</div>
             </div>
-            <div id="recentTrades" class="p-4 max-h-[200px] overflow-auto text-xs"></div>
+            <div id="recentTrades" class="p-4 max-h-[180px] overflow-auto text-xs"></div>
           </div>
         </section>
       </div>
@@ -441,7 +471,7 @@
   <div id="toasts" class="fixed bottom-4 right-4 z-[60] space-y-2"></div>
 
   <script>
-    const LS_KEY = 'spot_trading_v1';
+    const LS_KEY = 'spot_trading_v2';
 
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -450,6 +480,10 @@
     function nowISO() {
       const d = new Date();
       return d.toLocaleString(undefined, { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    }
+
+    function generateId() {
+      return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
     }
 
     function toast(msg, type='info', timeout=2600) {
@@ -528,7 +562,7 @@
 
     // State
     const DEFAULTS = {
-      version: 1,
+      version: 2,
       settings: {
         target: 'USDT',
         feeBps: 10,
@@ -540,6 +574,7 @@
         realizedPnl: 0,
       },
       holdings: {},
+      pendingOrders: [],
       history: [],
       ui: {
         symbol: 'BTCUSDT',
@@ -561,6 +596,7 @@
           settings: { ...structuredClone(DEFAULTS.settings), ...(parsed.settings||{}) },
           account: { ...structuredClone(DEFAULTS.account), ...(parsed.account||{}) },
           holdings: parsed.holdings || {},
+          pendingOrders: parsed.pendingOrders || [],
           history: parsed.history || [],
           ui: { ...structuredClone(DEFAULTS.ui), ...(parsed.ui||{}) },
           priceCache: parsed.priceCache || {}
@@ -582,6 +618,7 @@
 
     function resetPortfolio() {
       state.holdings = {};
+      state.pendingOrders = [];
       state.history = [];
       state.account.cash = state.account.initialCash;
       state.account.realizedPnl = 0;
@@ -622,7 +659,12 @@
       mid: NaN,
       lastUpdate: 0,
       lastTradePrice: NaN,
+      bids: [],
+      asks: []
     };
+
+    // Cache for multiple symbols
+    let marketCache = {};
 
     function normalizeOrderRow(row) {
       const p = safeNum(row?.[0]);
@@ -643,17 +685,33 @@
       const data = await fetchJSON(API.orderbook(symbol));
       if (data?.status !== 'ok') throw new Error('Orderbook status not ok');
       const top = computeTop(data);
-      live.orderbook = data;
-      live.bestBid = top.bestBid;
-      live.bestAsk = top.bestAsk;
-      live.mid = top.mid;
-      live.lastUpdate = data.lastUpdate || Date.now();
-      live.lastTradePrice = safeNum(data.lastTradePrice);
+      
+      // Update cache for this symbol
+      marketCache[symbol] = {
+        bestBid: top.bestBid,
+        bestAsk: top.bestAsk,
+        mid: top.mid,
+        bids: top.bids,
+        asks: top.asks,
+        ts: Date.now()
+      };
+      
+      // If current symbol, update live
+      if (symbol === state.ui.symbol) {
+        live.orderbook = data;
+        live.bestBid = top.bestBid;
+        live.bestAsk = top.bestAsk;
+        live.mid = top.mid;
+        live.bids = top.bids;
+        live.asks = top.asks;
+        live.lastUpdate = data.lastUpdate || Date.now();
+        live.lastTradePrice = safeNum(data.lastTradePrice);
+      }
 
       state.priceCache[symbol] = {
-        mid: live.mid,
-        bestBid: live.bestBid,
-        bestAsk: live.bestAsk,
+        mid: top.mid,
+        bestBid: top.bestBid,
+        bestAsk: top.bestAsk,
         ts: Date.now()
       };
       saveState();
@@ -697,6 +755,36 @@
       return state.holdings[asset] || { amount: 0, cost: 0 };
     }
 
+    function getLockedAmount(asset, side) {
+      // Calculate amount locked in pending orders
+      let locked = 0;
+      for (const order of state.pendingOrders) {
+        if (side === 'buy' && order.side === 'buy') {
+          // For buy orders, lock cash
+          const p = parseSymbol(order.symbol);
+          if (p.quote === state.settings.target) {
+            locked += order.totalCost;
+          }
+        } else if (side === 'sell' && order.side === 'sell') {
+          // For sell orders, lock asset
+          const p = parseSymbol(order.symbol);
+          if (p.base === asset) {
+            locked += order.amount;
+          }
+        }
+      }
+      return locked;
+    }
+
+    function getAvailableCash() {
+      return state.account.cash - getLockedAmount(null, 'buy');
+    }
+
+    function getAvailableAsset(asset) {
+      const holding = getHolding(asset).amount;
+      return holding - getLockedAmount(asset, 'sell');
+    }
+
     function getCachedMid(symbol) {
       const c = state.priceCache[symbol];
       if (!c) return NaN;
@@ -715,40 +803,57 @@
       return total;
     }
 
-    function calcUnrealized(asset) {
-      const target = state.settings.target;
-      const h = getHolding(asset);
-      const sym = `${asset}${target}`;
-      const mid = getCachedMid(sym);
-      if (!Number.isFinite(mid) || h.amount <= 0) return NaN;
-      return h.amount * mid - h.cost;
-    }
-
     function addHistory(entry) {
       state.history.unshift(entry);
       state.history = state.history.slice(0, 200);
     }
 
-    function executeTrade(side, symbol, amount, price) {
-      const p = parseSymbol(symbol);
-      if (!p.quote || p.quote !== state.settings.target) {
-        throw new Error(`Quote currency mismatch`);
-      }
-      if (!Number.isFinite(amount) || amount <= 0) throw new Error('Invalid amount');
-
-      const feeRate = feeRateFromBps(state.settings.feeBps);
-
+    // Check if order can be filled using cached market data
+    function canFillOrder(order, marketData) {
+      const { side, limitPrice, amount } = order;
+      const { bestBid, bestAsk } = marketData;
+      
       if (side === 'buy') {
-        const execPrice = Number.isFinite(price) && price > 0 ? price : live.bestAsk;
-        if (!Number.isFinite(execPrice)) throw new Error('No valid price');
-        const subtotal = amount * execPrice;
+        if (!Number.isFinite(bestAsk)) {
+          return { canFill: false, reason: 'No sellers', execPrice: NaN };
+        }
+        if (!Number.isFinite(limitPrice) || limitPrice <= 0) {
+          return { canFill: true, reason: null, execPrice: bestAsk };
+        }
+        if (limitPrice >= bestAsk) {
+          return { canFill: true, reason: null, execPrice: bestAsk };
+        }
+        return { canFill: false, reason: `Limit ${limitPrice} < Ask ${bestAsk}`, execPrice: NaN };
+      }
+      
+      if (side === 'sell') {
+        if (!Number.isFinite(bestBid)) {
+          return { canFill: false, reason: 'No buyers', execPrice: NaN };
+        }
+        if (!Number.isFinite(limitPrice) || limitPrice <= 0) {
+          return { canFill: true, reason: null, execPrice: bestBid };
+        }
+        if (limitPrice <= bestBid) {
+          return { canFill: true, reason: null, execPrice: bestBid };
+        }
+        return { canFill: false, reason: `Limit ${limitPrice} > Bid ${bestBid}`, execPrice: NaN };
+      }
+      
+      return { canFill: false, reason: 'Unknown side', execPrice: NaN };
+    }
+
+    function executeFilledOrder(order, execPrice) {
+      const p = parseSymbol(order.symbol);
+      const feeRate = feeRateFromBps(state.settings.feeBps);
+      
+      if (order.side === 'buy') {
+        const subtotal = order.amount * execPrice;
         const fee = subtotal * feeRate;
         const total = subtotal + fee;
-        if (state.account.cash + 1e-12 < total) throw new Error('Insufficient balance');
 
         const prev = getHolding(p.base);
         const next = {
-          amount: prev.amount + amount,
+          amount: prev.amount + order.amount,
           cost: prev.cost + total
         };
         state.holdings[p.base] = next;
@@ -757,34 +862,33 @@
         addHistory({
           ts: Date.now(),
           side: 'buy',
-          symbol,
+          symbol: order.symbol,
           asset: p.base,
           quote: p.quote,
-          amount,
+          amount: order.amount,
           price: execPrice,
+          limitPrice: order.limitPrice,
           fee,
           total,
-          realized: 0
+          realized: 0,
+          orderId: order.id,
+          wasQueued: order.createdAt < Date.now() - 1000
         });
 
         return { price: execPrice, fee, total };
       }
 
-      if (side === 'sell') {
-        const execPrice = Number.isFinite(price) && price > 0 ? price : live.bestBid;
-        if (!Number.isFinite(execPrice)) throw new Error('No valid price');
+      if (order.side === 'sell') {
         const prev = getHolding(p.base);
-        if (prev.amount + 1e-12 < amount) throw new Error('Insufficient asset balance');
-
-        const subtotal = amount * execPrice;
+        const subtotal = order.amount * execPrice;
         const fee = subtotal * feeRate;
         const net = subtotal - fee;
 
         const avgCost = prev.cost / prev.amount;
-        const costOut = avgCost * amount;
+        const costOut = avgCost * order.amount;
         const realized = net - costOut;
 
-        const remainingAmt = prev.amount - amount;
+        const remainingAmt = prev.amount - order.amount;
         const remainingCost = prev.cost - costOut;
 
         if (remainingAmt <= 1e-12) {
@@ -799,20 +903,171 @@
         addHistory({
           ts: Date.now(),
           side: 'sell',
-          symbol,
+          symbol: order.symbol,
           asset: p.base,
           quote: p.quote,
-          amount,
+          amount: order.amount,
           price: execPrice,
+          limitPrice: order.limitPrice,
           fee,
           total: net,
-          realized
+          realized,
+          orderId: order.id,
+          wasQueued: order.createdAt < Date.now() - 1000
         });
 
         return { price: execPrice, fee, total: net, realized };
       }
+    }
+
+    function createOrder(side, symbol, amount, limitPrice) {
+      const p = parseSymbol(symbol);
+      if (!p.quote || p.quote !== state.settings.target) {
+        throw new Error(`Quote currency mismatch`);
+      }
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error('Invalid amount');
+
+      const feeRate = feeRateFromBps(state.settings.feeBps);
+      const effectiveLimit = (Number.isFinite(limitPrice) && limitPrice > 0) ? limitPrice : null;
+      
+      // For market orders, use current best price for validation
+      const priceForCalc = effectiveLimit || (side === 'buy' ? live.bestAsk : live.bestBid);
+      
+      if (!Number.isFinite(priceForCalc)) {
+        throw new Error('No market price available');
+      }
+
+      if (side === 'buy') {
+        const subtotal = amount * priceForCalc;
+        const fee = subtotal * feeRate;
+        const totalCost = subtotal + fee;
+        
+        if (getAvailableCash() + 1e-12 < totalCost) {
+          throw new Error('Insufficient available balance');
+        }
+
+        return {
+          id: generateId(),
+          side: 'buy',
+          symbol,
+          asset: p.base,
+          quote: p.quote,
+          amount,
+          limitPrice: effectiveLimit,
+          totalCost,
+          createdAt: Date.now(),
+          status: 'pending'
+        };
+      }
+
+      if (side === 'sell') {
+        if (getAvailableAsset(p.base) + 1e-12 < amount) {
+          throw new Error('Insufficient available asset');
+        }
+
+        const subtotal = amount * priceForCalc;
+        const fee = subtotal * feeRate;
+        
+        return {
+          id: generateId(),
+          side: 'sell',
+          symbol,
+          asset: p.base,
+          quote: p.quote,
+          amount,
+          limitPrice: effectiveLimit,
+          estimatedReceive: subtotal - fee,
+          createdAt: Date.now(),
+          status: 'pending'
+        };
+      }
 
       throw new Error('Unknown side');
+    }
+
+    async function placeOrder(side, symbol, amount, limitPrice) {
+      // Refresh orderbook first
+      await refreshOrderbook(symbol);
+      
+      const order = createOrder(side, symbol, amount, limitPrice);
+      const marketData = { bestBid: live.bestBid, bestAsk: live.bestAsk };
+      const fillCheck = canFillOrder(order, marketData);
+      
+      if (fillCheck.canFill) {
+        // Execute immediately
+        const result = executeFilledOrder(order, fillCheck.execPrice);
+        saveState();
+        return { filled: true, result, order };
+      } else {
+        // Add to pending orders
+        state.pendingOrders.push(order);
+        saveState();
+        return { filled: false, reason: fillCheck.reason, order };
+      }
+    }
+
+    function cancelOrder(orderId) {
+      const idx = state.pendingOrders.findIndex(o => o.id === orderId);
+      if (idx === -1) return false;
+      state.pendingOrders.splice(idx, 1);
+      saveState();
+      return true;
+    }
+
+    function cancelAllOrders() {
+      const count = state.pendingOrders.length;
+      state.pendingOrders = [];
+      saveState();
+      return count;
+    }
+
+    // Check and execute pending orders
+    async function checkPendingOrders() {
+      if (state.pendingOrders.length === 0) return;
+      
+      // Get unique symbols from pending orders
+      const symbols = [...new Set(state.pendingOrders.map(o => o.symbol))];
+      
+      // Refresh orderbook for each symbol
+      for (const sym of symbols) {
+        try {
+          await refreshOrderbook(sym);
+        } catch (e) {
+          console.warn(`Failed to refresh ${sym}:`, e);
+        }
+        await sleep(200); // Rate limit
+      }
+      
+      // Check each pending order
+      const toRemove = [];
+      const executed = [];
+      
+      for (const order of state.pendingOrders) {
+        const cache = marketCache[order.symbol];
+        if (!cache) continue;
+        
+        const fillCheck = canFillOrder(order, cache);
+        if (fillCheck.canFill) {
+          try {
+            const result = executeFilledOrder(order, fillCheck.execPrice);
+            toRemove.push(order.id);
+            executed.push({ order, result });
+          } catch (e) {
+            console.warn(`Failed to execute order ${order.id}:`, e);
+          }
+        }
+      }
+      
+      // Remove executed orders
+      state.pendingOrders = state.pendingOrders.filter(o => !toRemove.includes(o.id));
+      saveState();
+      
+      // Notify user
+      for (const { order, result } of executed) {
+        toast(`Order filled: ${order.side.toUpperCase()} ${fmtAmount(order.amount)} ${order.asset} @ ${fmtMoney(result.price, state.settings.target)}`, 'ok');
+      }
+      
+      renderAll();
     }
 
     // UI rendering
@@ -849,6 +1104,18 @@
       const realizedPill = $('#realizedPill');
       realizedPill.textContent = `Realized: ${realized >= 0 ? '+' : ''}${fmtMoney(realized, target)}`;
       realizedPill.className = `text-xs rounded-full px-2 py-1 border ${realized >= 0 ? 'border-emerald-900/60 bg-emerald-950/40 text-emerald-200' : 'border-rose-900/60 bg-rose-950/40 text-rose-200'}`;
+      
+      // Pending badge
+      const pendingCount = state.pendingOrders.length;
+      const pendingBadge = $('#pendingBadge');
+      if (pendingCount > 0) {
+        pendingBadge.classList.remove('hidden');
+        pendingBadge.classList.add('flex');
+        $('#pendingCount').textContent = pendingCount;
+      } else {
+        pendingBadge.classList.add('hidden');
+        pendingBadge.classList.remove('flex');
+      }
     }
 
     function renderMarketSummary() {
@@ -868,13 +1135,13 @@
       $('#buyBtnAsset').textContent = p.base || '—';
       $('#sellBtnAsset').textContent = p.base || '—';
       
-      // Available balances
-      $('#buyAvailable').textContent = `${fmtMoney(state.account.cash, target)} ${target}`;
-      $('#sellAvailable').textContent = `${fmtAmount(getHolding(p.base).amount)} ${p.base}`;
+      // Available balances (minus locked amounts)
+      $('#buyAvailable').textContent = `${fmtMoney(getAvailableCash(), target)} ${target}`;
+      $('#sellAvailable').textContent = `${fmtAmount(getAvailableAsset(p.base))} ${p.base}`;
 
       const targetOk = canTradeSymbol(sym);
       $('#tradeHint').textContent = targetOk
-        ? 'Leave price empty for market order • Click orderbook prices to fill'
+        ? 'Limit orders wait for matching liquidity • Checked every 5 seconds'
         : `⚠️ Symbol must end with ${target}`;
       $('#tradeHint').className = `mt-4 text-xs text-center ${targetOk ? 'text-slate-400' : 'text-amber-200'}`;
     }
@@ -900,8 +1167,8 @@
       bidsEl.innerHTML = '';
       asksEl.innerHTML = '';
 
-      const bidRows = (live.orderbook?.bids || []).slice(0, 8).map(normalizeOrderRow);
-      const askRows = (live.orderbook?.asks || []).slice(0, 8).map(normalizeOrderRow);
+      const bidRows = live.bids.slice(0, 8);
+      const askRows = live.asks.slice(0, 8);
 
       for (const r of bidRows) {
         const row = document.createElement('div');
@@ -933,8 +1200,8 @@
         asksEl.appendChild(row);
       }
 
-      if (!bidRows.length) bidsEl.innerHTML = '<div class="text-slate-500 text-center py-2">—</div>';
-      if (!askRows.length) asksEl.innerHTML = '<div class="text-slate-500 text-center py-2">—</div>';
+      if (!bidRows.length) bidsEl.innerHTML = '<div class="text-slate-500 text-center py-2">No bids</div>';
+      if (!askRows.length) asksEl.innerHTML = '<div class="text-slate-500 text-center py-2">No asks</div>';
 
       renderTradePreview();
     }
@@ -979,38 +1246,154 @@
       const feeRate = feeRateFromBps(state.settings.feeBps);
 
       // Buy preview
-      const buyPrice = safeNum($('#buyPriceInput').value) || live.bestAsk;
+      const buyLimitPrice = safeNum($('#buyPriceInput').value);
       const buyAmount = safeNum($('#buyAmountInput').value);
+      const buyPrice = (Number.isFinite(buyLimitPrice) && buyLimitPrice > 0) ? buyLimitPrice : live.bestAsk;
       
-      if (Number.isFinite(buyPrice) && Number.isFinite(buyAmount) && buyAmount > 0) {
+      const buyStatus = $('#buyStatus');
+      const btnBuy = $('#btnBuy');
+      
+      if (Number.isFinite(buyAmount) && buyAmount > 0 && Number.isFinite(buyPrice)) {
         const subtotal = buyAmount * buyPrice;
         const fee = subtotal * feeRate;
         const total = subtotal + fee;
+        
         $('#buySubtotal').textContent = `${fmtMoney(subtotal, target)} ${target}`;
         $('#buyFee').textContent = `${fmtMoney(fee, target)} ${target}`;
         $('#buyTotal').textContent = `${fmtMoney(total, target)} ${target}`;
+        
+        const available = getAvailableCash();
+        const willQueue = Number.isFinite(buyLimitPrice) && buyLimitPrice > 0 && buyLimitPrice < live.bestAsk;
+        
+        if (available >= total) {
+          if (willQueue) {
+            buyStatus.textContent = `Will be queued (limit < ask)`;
+            buyStatus.className = 'text-xs text-center py-2 rounded-lg bg-amber-950/30 text-amber-300';
+            buyStatus.classList.remove('hidden');
+          } else {
+            buyStatus.classList.add('hidden');
+          }
+          btnBuy.disabled = false;
+        } else {
+          buyStatus.textContent = 'Insufficient balance';
+          buyStatus.className = 'text-xs text-center py-2 rounded-lg bg-rose-950/30 text-rose-300';
+          buyStatus.classList.remove('hidden');
+          btnBuy.disabled = true;
+        }
       } else {
         $('#buySubtotal').textContent = '—';
         $('#buyFee').textContent = '—';
         $('#buyTotal').textContent = '—';
+        buyStatus.classList.add('hidden');
+        btnBuy.disabled = true;
       }
 
       // Sell preview
-      const sellPrice = safeNum($('#sellPriceInput').value) || live.bestBid;
+      const sellLimitPrice = safeNum($('#sellPriceInput').value);
       const sellAmount = safeNum($('#sellAmountInput').value);
+      const sellPrice = (Number.isFinite(sellLimitPrice) && sellLimitPrice > 0) ? sellLimitPrice : live.bestBid;
       
-      if (Number.isFinite(sellPrice) && Number.isFinite(sellAmount) && sellAmount > 0) {
+      const sellStatus = $('#sellStatus');
+      const btnSell = $('#btnSell');
+      
+      if (Number.isFinite(sellAmount) && sellAmount > 0 && Number.isFinite(sellPrice)) {
         const subtotal = sellAmount * sellPrice;
         const fee = subtotal * feeRate;
         const total = subtotal - fee;
+        
         $('#sellSubtotal').textContent = `${fmtMoney(subtotal, target)} ${target}`;
         $('#sellFee').textContent = `${fmtMoney(fee, target)} ${target}`;
         $('#sellTotal').textContent = `${fmtMoney(total, target)} ${target}`;
+        
+        const available = getAvailableAsset(p.base);
+        const willQueue = Number.isFinite(sellLimitPrice) && sellLimitPrice > 0 && sellLimitPrice > live.bestBid;
+        
+        if (available >= sellAmount) {
+          if (willQueue) {
+            sellStatus.textContent = `Will be queued (limit > bid)`;
+            sellStatus.className = 'text-xs text-center py-2 rounded-lg bg-amber-950/30 text-amber-300';
+            sellStatus.classList.remove('hidden');
+          } else {
+            sellStatus.classList.add('hidden');
+          }
+          btnSell.disabled = false;
+        } else {
+          sellStatus.textContent = 'Insufficient asset balance';
+          sellStatus.className = 'text-xs text-center py-2 rounded-lg bg-rose-950/30 text-rose-300';
+          sellStatus.classList.remove('hidden');
+          btnSell.disabled = true;
+        }
       } else {
         $('#sellSubtotal').textContent = '—';
         $('#sellFee').textContent = '—';
         $('#sellTotal').textContent = '—';
+        sellStatus.classList.add('hidden');
+        btnSell.disabled = true;
       }
+
+      // Update price hints
+      $('#buyPriceHint').textContent = Number.isFinite(live.bestAsk) 
+        ? `Best ask: ${fmtMoney(live.bestAsk, target)} • ≥ to fill instantly` 
+        : 'No asks available';
+      $('#sellPriceHint').textContent = Number.isFinite(live.bestBid) 
+        ? `Best bid: ${fmtMoney(live.bestBid, target)} • ≤ to fill instantly` 
+        : 'No bids available';
+    }
+
+    function renderOpenOrders() {
+      const wrap = $('#openOrdersList');
+      const target = state.settings.target;
+      const orders = state.pendingOrders;
+      
+      $('#openOrdersCount').textContent = orders.length;
+      
+      if (orders.length === 0) {
+        wrap.innerHTML = '<div id="noOpenOrders" class="text-sm text-slate-400 text-center py-4">No open orders</div>';
+        return;
+      }
+      
+      wrap.innerHTML = '';
+      
+      for (const order of orders) {
+        const age = Math.floor((Date.now() - order.createdAt) / 1000);
+        const ageText = age < 60 ? `${age}s ago` : `${Math.floor(age/60)}m ago`;
+        const sideCls = order.side === 'buy' 
+          ? 'bg-emerald-950/50 text-emerald-300 border-emerald-900/50' 
+          : 'bg-rose-950/50 text-rose-300 border-rose-900/50';
+        
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-800 bg-slate-900/30 mb-2 last:mb-0';
+        div.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="h-2 w-2 rounded-full bg-amber-500 pulse-dot"></span>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs px-2 py-0.5 rounded border ${sideCls}">${order.side.toUpperCase()}</span>
+                <span class="font-semibold">${order.asset}</span>
+                <span class="text-xs text-slate-500">${ageText}</span>
+              </div>
+              <div class="text-xs text-slate-400 mt-1 font-mono">
+                ${fmtAmount(order.amount)} @ ${order.limitPrice ? fmtMoney(order.limitPrice, target) : 'Market'} ${target}
+              </div>
+            </div>
+          </div>
+          <button class="cancel-order-btn rounded-lg px-2 py-1 text-xs bg-slate-800 hover:bg-rose-900/50 text-rose-200 border border-slate-700" data-id="${order.id}">
+            Cancel
+          </button>
+        `;
+        wrap.appendChild(div);
+      }
+      
+      // Attach cancel handlers
+      wrap.querySelectorAll('.cancel-order-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          if (cancelOrder(id)) {
+            toast('Order cancelled', 'ok');
+            renderAll();
+          }
+        });
+      });
     }
 
     function renderPortfolio() {
@@ -1070,12 +1453,16 @@
           ? 'bg-emerald-950/50 text-emerald-300'
           : 'bg-rose-950/50 text-rose-300';
 
+        const typeInfo = h.limitPrice ? `limit @ ${fmtMoney(h.limitPrice, target)}` : 'market';
+        const queuedBadge = h.wasQueued ? '<span class="text-[10px] px-1 py-0.5 rounded bg-amber-950/50 text-amber-300 ml-1">queued</span>' : '';
+
         const div = document.createElement('div');
         div.className = 'flex items-center justify-between gap-2 py-2 border-b border-slate-800/40 last:border-b-0 text-xs';
         div.innerHTML = `
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <span class="px-2 py-0.5 rounded text-[10px] font-semibold ${sideCls}">${h.side.toUpperCase()}</span>
             <span class="font-semibold">${h.asset}</span>
+            ${queuedBadge}
             <span class="text-slate-500">${t}</span>
           </div>
           <div class="text-right font-mono">
@@ -1092,6 +1479,7 @@
       renderMarketSummary();
       renderOrderbook();
       renderRecentTrades();
+      renderOpenOrders();
       renderPortfolio();
       renderHistory();
     }
@@ -1210,6 +1598,7 @@
     // Refresh scheduling
     let orderbookTimer = null;
     let tradesTimer = null;
+    let pendingOrdersTimer = null;
     let chartInFlight = false;
     let marketInFlight = false;
 
@@ -1261,6 +1650,17 @@
           .then(renderRecentTrades)
           .catch(() => setConn('warn', 'Trades'));
       }, 18000);
+    }
+
+    function schedulePendingOrdersCheck() {
+      if (pendingOrdersTimer) clearInterval(pendingOrdersTimer);
+      
+      // Check pending orders every 5 seconds
+      pendingOrdersTimer = setInterval(() => {
+        if (state.pendingOrders.length > 0) {
+          checkPendingOrders();
+        }
+      }, 5000);
     }
 
     async function refreshPortfolioPrices() {
@@ -1340,6 +1740,7 @@
 
       if (targetChanged) {
         state.holdings = {};
+        state.pendingOrders = [];
         state.history = [];
         state.priceCache = {};
         const candidate = parseSymbol(state.settings.defaultSymbol).quote === nextTarget
@@ -1395,6 +1796,7 @@
           settings: { ...structuredClone(DEFAULTS.settings), ...(parsed.settings||{}) },
           account: { ...structuredClone(DEFAULTS.account), ...(parsed.account||{}) },
           holdings: parsed.holdings || {},
+          pendingOrders: parsed.pendingOrders || [],
           history: parsed.history || [],
           ui: { ...structuredClone(DEFAULTS.ui), ...(parsed.ui||{}) },
           priceCache: parsed.priceCache || {}
@@ -1429,7 +1831,7 @@
       });
 
       $('#btnReset').addEventListener('click', () => {
-        if (!confirm('Reset portfolio?')) return;
+        if (!confirm('Reset portfolio and cancel all orders?')) return;
         resetPortfolio();
         saveState();
         renderAll();
@@ -1454,9 +1856,10 @@
         const btn = e.target.closest('[data-pct]');
         if (!btn) return;
         const pct = parseFloat(btn.dataset.pct);
-        const price = safeNum($('#buyPriceInput').value) || live.bestAsk;
+        const limitPrice = safeNum($('#buyPriceInput').value);
+        const price = (Number.isFinite(limitPrice) && limitPrice > 0) ? limitPrice : live.bestAsk;
         const feeRate = feeRateFromBps(state.settings.feeBps);
-        const cash = state.account.cash;
+        const cash = getAvailableCash();
         if (Number.isFinite(price) && price > 0) {
           const amount = (cash * pct) / (price * (1 + feeRate));
           $('#buyAmountInput').value = amount;
@@ -1471,14 +1874,16 @@
           return;
         }
         const amount = safeNum($('#buyAmountInput').value);
-        const price = safeNum($('#buyPriceInput').value);
+        const limitPrice = safeNum($('#buyPriceInput').value);
         try {
-          await refreshOrderbook(sym);
-          const res = executeTrade('buy', sym, amount, price);
-          saveState();
+          const result = await placeOrder('buy', sym, amount, limitPrice);
           $('#buyAmountInput').value = '';
           renderAll();
-          toast(`Bought ${fmtAmount(amount)} ${parseSymbol(sym).base} @ ${fmtMoney(res.price, state.settings.target)}`, 'ok');
+          if (result.filled) {
+            toast(`Bought ${fmtAmount(amount)} ${parseSymbol(sym).base} @ ${fmtMoney(result.result.price, state.settings.target)}`, 'ok');
+          } else {
+            toast(`Order queued: waiting for price ≤ ${fmtMoney(limitPrice, state.settings.target)}`, 'info');
+          }
         } catch (e) {
           toast(e.message, 'err');
         }
@@ -1498,8 +1903,8 @@
         const pct = parseFloat(btn.dataset.pct);
         const sym = state.ui.symbol;
         const p = parseSymbol(sym);
-        const holding = getHolding(p.base).amount;
-        $('#sellAmountInput').value = holding * pct;
+        const available = getAvailableAsset(p.base);
+        $('#sellAmountInput').value = available * pct;
         renderTradePreview();
       });
 
@@ -1510,17 +1915,28 @@
           return;
         }
         const amount = safeNum($('#sellAmountInput').value);
-        const price = safeNum($('#sellPriceInput').value);
+        const limitPrice = safeNum($('#sellPriceInput').value);
         try {
-          await refreshOrderbook(sym);
-          const res = executeTrade('sell', sym, amount, price);
-          saveState();
+          const result = await placeOrder('sell', sym, amount, limitPrice);
           $('#sellAmountInput').value = '';
           renderAll();
-          toast(`Sold ${fmtAmount(amount)} ${parseSymbol(sym).base} @ ${fmtMoney(res.price, state.settings.target)}`, 'ok');
+          if (result.filled) {
+            toast(`Sold ${fmtAmount(amount)} ${parseSymbol(sym).base} @ ${fmtMoney(result.result.price, state.settings.target)}`, 'ok');
+          } else {
+            toast(`Order queued: waiting for price ≥ ${fmtMoney(limitPrice, state.settings.target)}`, 'info');
+          }
         } catch (e) {
           toast(e.message, 'err');
         }
+      });
+
+      // Open orders
+      $('#btnCancelAllOrders').addEventListener('click', () => {
+        if (state.pendingOrders.length === 0) return;
+        if (!confirm(`Cancel all ${state.pendingOrders.length} open orders?`)) return;
+        const count = cancelAllOrders();
+        toast(`Cancelled ${count} orders`, 'ok');
+        renderAll();
       });
 
       $('#btnClearHistory').addEventListener('click', () => {
@@ -1574,6 +1990,12 @@
 
       scheduleMarketRefresh(true);
       scheduleChartRefresh(true);
+      schedulePendingOrdersCheck();
+
+      // Check pending orders on startup
+      if (state.pendingOrders.length > 0) {
+        setTimeout(() => checkPendingOrders(), 2000);
+      }
 
       setTimeout(() => {
         if (Object.keys(state.holdings).length) refreshPortfolioPrices();
